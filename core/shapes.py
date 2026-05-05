@@ -3,6 +3,28 @@ from PySide6.QtWidgets import QGraphicsItem, QGraphicsPolygonItem, QGraphicsRect
 from PySide6.QtGui import QPen, QBrush, QColor, QPolygonF, QFont, QTransform, QPainter
 from PySide6.QtCore import Qt, QRectF, QPointF
 import math
+import hashlib
+
+
+LABEL_COLOR_PALETTE = [
+    "#1C7ED6", "#E03131", "#2B8A3E", "#F08C00", "#8E44AD", "#0CA678",
+    "#C2255C", "#5F3DC4", "#D9480F", "#1098AD", "#F59F00", "#2F9E44",
+]
+
+
+def color_for_label(label):
+    if not label:
+        return QColor(28, 126, 214)
+    digest = hashlib.md5(label.encode("utf-8")).hexdigest()
+    index = int(digest[:8], 16) % len(LABEL_COLOR_PALETTE)
+    return QColor(LABEL_COLOR_PALETTE[index])
+
+
+def resolve_shape_color(shape, label):
+    custom = getattr(shape, "custom_color", None)
+    if custom:
+        return QColor(custom)
+    return color_for_label(label)
 
 
 def point_to_segment_dist(p, a, b):
@@ -44,9 +66,10 @@ def clamp_item_position(item, proposed_pos):
 
 class BaseShape:
     def setup_style(self, item):
-        self.normal_pen = QPen(QColor(28, 126, 214), 2)
-        self.normal_brush = QBrush(QColor(28, 126, 214, 50))
-        self.hover_brush = QBrush(QColor(28, 126, 214, 120))
+        base_color = resolve_shape_color(self, getattr(self, 'label', ''))
+        self.normal_pen = QPen(base_color, 2)
+        self.normal_brush = QBrush(QColor(base_color.red(), base_color.green(), base_color.blue(), 50))
+        self.hover_brush = QBrush(QColor(base_color.red(), base_color.green(), base_color.blue(), 120))
 
         item.setPen(self.normal_pen)
         item.setBrush(self.normal_brush)
@@ -66,10 +89,37 @@ class BaseShape:
 
     def setup_label(self, item):
         self.label_text = QGraphicsTextItem(item)
-        self.label_text.setDefaultTextColor(QColor(255, 255, 255))
+        self.label_text.setDefaultTextColor(resolve_shape_color(self, getattr(self, 'label', '')))
         self.label_text.setFont(QFont("Arial", 10, QFont.Bold))
         self.label_text.setZValue(1001)
         self.label_text.hide()
+
+    def set_label_style(self, label):
+        self.label = label
+        color = resolve_shape_color(self, label)
+
+        if hasattr(self, 'normal_pen'):
+            self.normal_pen.setColor(color)
+        if hasattr(self, 'normal_brush'):
+            self.normal_brush = QBrush(QColor(color.red(), color.green(), color.blue(), 50))
+        if hasattr(self, 'hover_brush'):
+            self.hover_brush = QBrush(QColor(color.red(), color.green(), color.blue(), 120))
+        if hasattr(self, 'label_text') and self.label_text:
+            self.label_text.setDefaultTextColor(color)
+
+        if hasattr(self, 'setPen') and hasattr(self, 'normal_pen'):
+            self.setPen(self.normal_pen)
+        if hasattr(self, 'setBrush') and hasattr(self, 'normal_brush'):
+            self.setBrush(self.hover_brush if getattr(self, '_hovered', False) else self.normal_brush)
+
+        for handle_name in ('lt_handle', 'rt_handle', 'lb_handle', 'rb_handle', 'ghost_handle'):
+            handle = getattr(self, handle_name, None)
+            if handle:
+                handle.setPen(QPen(color, 1.5))
+
+        for handle in getattr(self, 'handles', []):
+            if isinstance(handle, HandleItem):
+                handle.setPen(QPen(color, 1.5))
 
     def update_label_position(self, item):
         if not hasattr(self, 'label_text') or not self.label_text:
@@ -83,14 +133,11 @@ class BaseShape:
     def update_label_text(self, text):
         if hasattr(self, 'label_text') and self.label_text:
             self.label_text.setPlainText(text)
-            self.label_text.show()
+            self.label_text.hide()
 
     def update_label_visibility(self, item, is_selected=False, is_hovered=False):
         if hasattr(self, 'label_text') and self.label_text:
-            if is_selected or is_hovered:
-                self.label_text.show()
-            else:
-                self.label_text.hide()
+            self.label_text.hide()
 
 
 class HandleItem(QGraphicsEllipseItem):
@@ -161,10 +208,10 @@ class HandleItem(QGraphicsEllipseItem):
 class RectShape(QGraphicsRectItem, BaseShape):
     def __init__(self, rect, label=""):
         super().__init__(rect)
-        self.setup_style(self)
         self.label = label
         self._updating_handles = False
         self._hovered = False
+        self.setup_style(self)
 
         self.setup_label(self)
         if label:
@@ -175,6 +222,7 @@ class RectShape(QGraphicsRectItem, BaseShape):
         self.rt_handle = HandleItem(self)
         self.lb_handle = HandleItem(self)
         self.rb_handle = HandleItem(self)
+        self.set_label_style(label)
         self.update_handles_pos()
 
     def hoverEnterEvent(self, event):
@@ -274,6 +322,7 @@ class PolyShape(QGraphicsPolygonItem, BaseShape):
             if label:
                 self.update_label_text(label)
                 self.update_label_position(self)
+            self.set_label_style(label)
 
         self.update_handles()
 
@@ -439,9 +488,11 @@ class PointShape(QGraphicsEllipseItem, BaseShape):
     def __init__(self, point, label=""):
         r = 4
         super().__init__(point.x() - r, point.y() - r, r * 2, r * 2)
-        self.normal_pen = QPen(QColor(250, 82, 82), 2)
-        self.normal_brush = QBrush(QColor(250, 82, 82, 150))
-        self.hover_brush = QBrush(QColor(250, 82, 82, 220))
+        self._hovered = False
+        point_color = resolve_shape_color(self, label)
+        self.normal_pen = QPen(point_color, 2)
+        self.normal_brush = QBrush(QColor(point_color.red(), point_color.green(), point_color.blue(), 150))
+        self.hover_brush = QBrush(QColor(point_color.red(), point_color.green(), point_color.blue(), 220))
         self.setPen(self.normal_pen)
         self.setBrush(self.normal_brush)
         self.setFlags(
@@ -453,14 +504,17 @@ class PointShape(QGraphicsEllipseItem, BaseShape):
         if label:
             self.update_label_text(label)
             self.update_label_position(self)
+        self.set_label_style(label)
 
     def hoverEnterEvent(self, event):
+        self._hovered = True
         self.setBrush(self.hover_brush)
         self.setCursor(Qt.PointingHandCursor)
         self.update_label_visibility(self, is_selected=self.isSelected(), is_hovered=True)
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
+        self._hovered = False
         self.setBrush(self.normal_brush)
         self.setCursor(Qt.ArrowCursor)
         self.update_label_visibility(self, is_selected=self.isSelected(), is_hovered=False)
@@ -499,8 +553,9 @@ class OBBHandle(QGraphicsItem):
 
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.Antialiasing)
+        base_color = resolve_shape_color(self.parentItem(), getattr(self.parentItem(), 'label', ''))
         painter.setBrush(QBrush(QColor(255, 255, 255)))
-        painter.setPen(QPen(QColor(28, 126, 214), 2))
+        painter.setPen(QPen(base_color, 2))
         if self.handle_type == 'rotate':
             painter.drawEllipse(self.boundingRect())
         else:
@@ -577,11 +632,12 @@ class RotatedRectShape(QGraphicsObject, BaseShape):
             self.rect_item.setPen(QPen(QColor(0, 255, 0), 2, Qt.DashLine))
             self.rect_item.setBrush(QBrush(QColor(0, 255, 0, 50)))
         else:
-            self.rect_item.setPen(QPen(QColor(28, 126, 214), 2))
-            self.rect_item.setBrush(QBrush(QColor(28, 126, 214, 50)))
+            base_color = resolve_shape_color(self, label)
+            self.rect_item.setPen(QPen(base_color, 2))
+            self.rect_item.setBrush(QBrush(QColor(base_color.red(), base_color.green(), base_color.blue(), 50)))
 
         self.rotate_line = QGraphicsLineItem(self)
-        self.rotate_line.setPen(QPen(QColor(28, 126, 214), 1.5, Qt.DashLine))
+        self.rotate_line.setPen(QPen(resolve_shape_color(self, label), 1.5, Qt.DashLine))
 
         self.h_top = OBBHandle('top', self)
         self.h_bottom = OBBHandle('bottom', self)
@@ -597,6 +653,7 @@ class RotatedRectShape(QGraphicsObject, BaseShape):
         if not is_temp:
             self.setup_label(self)
             if label: self.update_label_text(label)
+            self.set_label_style(label)
 
         if is_temp:
             for h in self.handles:
@@ -678,13 +735,15 @@ class RotatedRectShape(QGraphicsObject, BaseShape):
 
     def hoverEnterEvent(self, event):
         self._hovered = True
-        self.rect_item.setBrush(QBrush(QColor(28, 126, 214, 120)))
+        color = resolve_shape_color(self, self.label)
+        self.rect_item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 120)))
         self._update_handle_visibility()
         super().hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
         self._hovered = False
-        self.rect_item.setBrush(QBrush(QColor(28, 126, 214, 50)))
+        color = resolve_shape_color(self, self.label)
+        self.rect_item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 50)))
         self._update_handle_visibility()
         super().hoverLeaveEvent(event)
 
@@ -709,3 +768,29 @@ class RotatedRectShape(QGraphicsObject, BaseShape):
         elif change == QGraphicsItem.ItemPositionHasChanged:
             self.update_label_position(self)
         return super().itemChange(change, value)
+
+    def set_label_style(self, label):
+        self.label = label
+        color = color_for_label(label)
+        self.normal_pen = QPen(color, 2)
+        self.normal_brush = QBrush(QColor(color.red(), color.green(), color.blue(), 150))
+        self.hover_brush = QBrush(QColor(color.red(), color.green(), color.blue(), 220))
+        self.setPen(self.normal_pen)
+        self.setBrush(self.hover_brush if self._hovered else self.normal_brush)
+        if hasattr(self, 'label_text') and self.label_text:
+            self.label_text.setDefaultTextColor(color)
+
+    def set_label_style(self, label):
+        self.label = label
+        color = resolve_shape_color(self, label)
+
+        self.rect_item.setPen(QPen(color, 2))
+        self.rect_item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 120 if self._hovered else 50)))
+        self.rotate_line.setPen(QPen(color, 1.5, Qt.DashLine))
+
+        if hasattr(self, 'label_text') and self.label_text:
+            self.label_text.setDefaultTextColor(color)
+
+        for handle in getattr(self, 'handles', []):
+            if isinstance(handle, OBBHandle):
+                handle.update()

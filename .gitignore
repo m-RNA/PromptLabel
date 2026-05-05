@@ -8,3 +8,6 @@ sam3/
 __pycache__/
 
 yolotest/
+.venv311/
+*.log
+models/

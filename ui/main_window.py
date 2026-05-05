@@ -1,8 +1,10 @@
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                               QToolBar, QDockWidget, QListWidget, QGraphicsView,
-                               QLabel, QLineEdit, QPushButton, QStatusBar, QMenu)
-from PySide6.QtCore import Qt, Signal, QRect
-from PySide6.QtGui import QAction, QActionGroup, QPainter, QColor, QFont
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
+    QGraphicsView, QLabel, QLineEdit, QPushButton, QStatusBar, QMenu,
+    QSplitter, QListView, QToolBox, QComboBox, QAbstractItemView
+)
+from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QAction, QActionGroup, QPainter
 
 
 class FormatSelectorWidget(QWidget):
@@ -11,90 +13,55 @@ class FormatSelectorWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 10)
-        layout.setSpacing(2)
-        layout.setAlignment(Qt.AlignCenter)
-
-        self.btn = QPushButton("JSON 格式 ▾")
-        self.btn.setCursor(Qt.PointingHandCursor)
-
-        self.btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: 1px solid transparent;
-                color: #F8FAFC;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 6px 10px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #1E293B;
-                color: #22C55E;
-            }
-            QPushButton::menu-indicator {
-                image: none; /* 强制隐藏默认箭头 */
-            }
-        """)
-
-        # 下拉菜单
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.label = QLabel("标注格式")
+        self.btn = QPushButton("YOLO ▾")
         self.menu = QMenu(self)
-        self.menu.setWindowFlag(Qt.FramelessWindowHint)
-        self.menu.setAttribute(Qt.WA_TranslucentBackground)
-        self.menu.setStyleSheet("""
-            QMenu {
-                background-color: #0F172A;
-                border: 1px solid #334155;
-                border-radius: 8px;
-                padding: 6px 0px;
-            }
-            QMenu::item {
-                padding: 8px 36px 8px 32px;
-                margin: 2px 6px;
-                border-radius: 4px;
-                color: #cbd5e1;
-                font-size: 13px;
-                font-family: "Microsoft YaHei", sans-serif;
-            }
-            QMenu::item:selected {
-                background-color: #1E293B;
-                color: #22C55E;
-                font-weight: bold;
-            }
-        """)
-
-        self.act_json = QAction("JSON 格式", self)
-        self.act_yolo = QAction("YOLO 格式", self)
-        self.act_xml = QAction("XML 格式", self)
-
+        self.act_json = QAction("JSON", self)
+        self.act_yolo = QAction("YOLO", self)
+        self.act_xml = QAction("XML", self)
         self.menu.addAction(self.act_json)
         self.menu.addAction(self.act_yolo)
         self.menu.addAction(self.act_xml)
-
         self.btn.setMenu(self.menu)
-
-        self.label = QLabel("标注格式")
-        self.label.setAlignment(Qt.AlignCenter)
-        self.label.setStyleSheet("font-size: 11px; color: #94A3B8; margin-top: 2px;")
-
-        layout.addWidget(self.btn)
         layout.addWidget(self.label)
-
-        self.act_json.triggered.connect(lambda: self._on_format_selected("json", "JSON 格式 ▾"))
-        self.act_yolo.triggered.connect(lambda: self._on_format_selected("yolo", "YOLO 格式 ▾"))
-        self.act_xml.triggered.connect(lambda: self._on_format_selected("xml", "XML 格式 ▾"))
+        layout.addWidget(self.btn)
+        self.act_json.triggered.connect(lambda: self._on_format_selected("json", "JSON ▾"))
+        self.act_yolo.triggered.connect(lambda: self._on_format_selected("yolo", "YOLO ▾"))
+        self.act_xml.triggered.connect(lambda: self._on_format_selected("xml", "XML ▾"))
 
     def _on_format_selected(self, fmt, text):
         self.btn.setText(text)
         self.format_changed.emit(fmt)
 
     def set_format(self, fmt):
-        if fmt == "json":
-            self.btn.setText("JSON 格式 ▾")
-        elif fmt == "yolo":
-            self.btn.setText("YOLO 格式 ▾")
-        elif fmt == "xml":
-            self.btn.setText("XML 格式 ▾")
+        text_map = {"json": "JSON ▾", "yolo": "YOLO ▾", "xml": "XML ▾"}
+        self.btn.setText(text_map.get(fmt, "YOLO ▾"))
+
+
+class ThemeSelectorWidget(QWidget):
+    theme_changed = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.label = QLabel("主题")
+        self.combo = QComboBox()
+        self.combo.addItem("跟随系统", "system")
+        self.combo.addItem("浅色", "light")
+        self.combo.addItem("深色", "dark")
+        layout.addWidget(self.label)
+        layout.addWidget(self.combo)
+        self.combo.currentIndexChanged.connect(lambda _: self.theme_changed.emit(self.combo.currentData()))
+
+    def set_theme(self, theme_key):
+        for i in range(self.combo.count()):
+            if self.combo.itemData(i) == theme_key:
+                self.combo.setCurrentIndex(i)
+                return
 
 
 class SwitchControl(QWidget):
@@ -103,7 +70,6 @@ class SwitchControl(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(50, 26)
-        self.setCursor(Qt.PointingHandCursor)
         self._checked = False
 
     def isChecked(self):
@@ -121,23 +87,14 @@ class SwitchControl(QWidget):
         super().mouseReleaseEvent(event)
 
     def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        rect = QRect(0, 0, self.width(), self.height())
-
-        if self._checked:
-            p.setBrush(QColor("#22C55E"))
-        else:
-            p.setBrush(QColor("#334155"))
-
-        p.setPen(Qt.NoPen)
-        p.drawRoundedRect(rect, 13, 13)
-
-        p.setBrush(QColor("#FFFFFF"))
-        if self._checked:
-            p.drawEllipse(self.width() - 24, 2, 22, 22)
-        else:
-            p.drawEllipse(2, 2, 22, 22)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(Qt.darkGreen if self._checked else Qt.gray)
+        painter.drawRoundedRect(self.rect(), 13, 13)
+        painter.setBrush(Qt.white)
+        x = self.width() - 24 if self._checked else 2
+        painter.drawEllipse(x, 2, 22, 22)
 
 
 class CanvasView(QGraphicsView):
@@ -146,25 +103,17 @@ class CanvasView(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setMouseTracking(True)
         self.setAlignment(Qt.AlignCenter)
-        self.setDragMode(QGraphicsView.NoDrag)
-
+        self.setFocusPolicy(Qt.StrongFocus)
         self._is_panning = False
         self._pan_start_pos = None
 
     def wheelEvent(self, event):
-        zoom_in_factor = 1.15
-        zoom_out_factor = 1.0 / zoom_in_factor
-        if event.angleDelta().y() > 0:
-            zoom_factor = zoom_in_factor
-        else:
-            zoom_factor = zoom_out_factor
-        self.scale(zoom_factor, zoom_factor)
+        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+        self.scale(factor, factor)
 
     def mousePressEvent(self, event):
+        self.setFocus()
         if event.button() == Qt.MiddleButton:
             self._is_panning = True
             self._pan_start_pos = event.position().toPoint()
@@ -172,6 +121,14 @@ class CanvasView(QGraphicsView):
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        scene = self.scene()
+        if scene is not None:
+            scene.keyPressEvent(event)
+            if event.isAccepted():
+                return
+        super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self._is_panning:
@@ -194,218 +151,112 @@ class CanvasView(QGraphicsView):
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("LuoHuaLabel - 基于SAM3的智能标注系统")
-        MainWindow.resize(1280, 800)
-
-        self.btnDatasetTool = QPushButton("数据集处理")
-        self.btnDatasetTool.setStyleSheet("""
-            QPushButton {
-                background-color: #22C55E;
-                color: #020617;
-                border: none;
-                border-radius: 6px;
-                padding: 10px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #4ade80; }
-        """)
+        MainWindow.setWindowTitle("LuoHuaLabel")
+        MainWindow.resize(1500, 900)
 
         self.centralWidget = QWidget(MainWindow)
         self.mainLayout = QHBoxLayout(self.centralWidget)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
-
-        self.view = CanvasView()
-        self.mainLayout.addWidget(self.view)
         MainWindow.setCentralWidget(self.centralWidget)
-
-        self.statusBar = QStatusBar()
-        MainWindow.setStatusBar(self.statusBar)
-        self.coordLabel = QLabel("坐标: X: 0, Y: 0")
-        self.statusBar.addPermanentWidget(self.coordLabel)
 
         self.toolBar = QToolBar("工具栏")
         self.toolBar.setOrientation(Qt.Vertical)
         self.toolBar.setMovable(False)
         MainWindow.addToolBar(Qt.LeftToolBarArea, self.toolBar)
 
-        self.dockRight = QDockWidget("标注管理", MainWindow)
-        self.dockRight.setAllowedAreas(Qt.RightDockWidgetArea)
-        self.dockRightWidget = QWidget()
-        self.dockLayout = QVBoxLayout(self.dockRightWidget)
-
-        self.labelClasses = QLabel("历史类别:")
-        self.listClasses = QListWidget()
-
-        self.labelFiles = QLabel("文件列表:")
-        self.listFiles = QListWidget()
-        # self.listFiles.setMinimumHeight(350)
-
-        # self.dockLayout.addWidget(self.labelClasses)
-        # self.dockLayout.addWidget(self.listClasses)
-        # self.dockLayout.addWidget(self.labelFiles)
-        # self.dockLayout.addWidget(self.listFiles)
-
-        self.dockLayout.addWidget(self.labelClasses)
-        self.dockLayout.addWidget(self.listClasses, 2)  # 历史类别分配x份自适应空间
-        self.dockLayout.addWidget(self.labelFiles)
-        self.dockLayout.addWidget(self.listFiles, 4)  # 文件列表分配x份自适应空间
-
-        # self.dockLayout.addStretch()
-
-        # ==== 右下角区域 ====
-        self.samTextGroup = QWidget()
-        textLayout = QVBoxLayout(self.samTextGroup)
-        textLayout.setContentsMargins(0, 5, 0, 15)
-        textLayout.setSpacing(8)
-
-        helpLayout = QHBoxLayout()
-        helpLayout.setContentsMargins(0, 0, 0, 8)
-        helpLayout.addStretch()  # 把问号推到右边
-
-        self.btnHelp = QPushButton("?")
-        self.btnHelp.setToolTip("使用说明 (F1)")
-        self.btnHelp.setFixedSize(22, 22)  # 尺寸
-        self.btnHelp.setCursor(Qt.PointingHandCursor)
-
-        font = QFont()
-        font.setBold(True)
-        font.setPointSize(10)  # 字体调小
-        self.btnHelp.setFont(font)
-
-        self.btnHelp.setStyleSheet("""
-                    QPushButton {
-                        background-color: transparent;
-                        border: 2px solid #334155;
-                        border-radius: 11px;
-                        color: #94A3B8;
-                        padding: 0px;
-                        margin: 0px;
-                    }
-                    QPushButton:hover {
-                        border: 2px solid #22C55E;
-                        color: #22C55E;
-                        background-color: #1E293B;
-                    }
-                    QPushButton:pressed {
-                        background-color: #0F172A;
-                    }
-                """)
-        helpLayout.addWidget(self.btnHelp)
-        textLayout.addLayout(helpLayout)
-
-        # 提示词输入与提取按钮
-        self.samPromptInput = QLineEdit()
-        self.samPromptInput.setPlaceholderText("输入提示词提取 (如: dog)")
-        self.samPromptInput.setStyleSheet("""
-                    QLineEdit {
-                        border: 2px solid #334155;
-                        border-radius: 14px;
-                        padding: 6px 14px;
-                        font-size: 13px;
-                        background-color: #0F172A;
-                        color: #F8FAFC;
-                    }
-                    QLineEdit:focus {
-                        border: 2px solid #22C55E;
-                    }
-                """)
-
-        self.samPromptBtn = QPushButton("✨ 提交")
-        self.samPromptBtn.setCursor(Qt.PointingHandCursor)
-        self.samPromptBtn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #22C55E;
-                        color: #020617;
-                        border: none;
-                        border-radius: 14px;
-                        padding: 8px;
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-                    QPushButton:hover {
-                        background-color: #4ade80;
-                    }
-                    QPushButton:pressed {
-                        background-color: #16a34a;
-                    }
-                """)
-
-        textLayout.addWidget(self.samPromptInput)
-        textLayout.addWidget(self.samPromptBtn)
-
-        self.dockLayout.addWidget(self.samTextGroup)
-
-        self.dockRight.setWidget(self.dockRightWidget)
-        MainWindow.addDockWidget(Qt.RightDockWidgetArea, self.dockRight)
-
         self.actionOpen = QAction("打开目录", MainWindow)
-        self.actionRect = QAction("矩形标注 (R)", MainWindow)
-        self.actionPoly = QAction("多边形标注 (P)", MainWindow)
-        self.actionPoint = QAction("点标注 (T)", MainWindow)
-        self.actionRBox = QAction("旋转框标注 (O)", MainWindow)
+        self.actionRect = QAction("矩形 (R)", MainWindow)
+        self.actionPoly = QAction("多边形 (P)", MainWindow)
+        self.actionPoint = QAction("点 (T)", MainWindow)
+        self.actionRBox = QAction("旋转框 (O)", MainWindow)
 
         self.modeGroup = QActionGroup(MainWindow)
-        for act in [self.actionRect, self.actionPoly, self.actionPoint, self.actionRBox]:
-            act.setCheckable(True)
-            self.modeGroup.addAction(act)
-
+        for action in [self.actionRect, self.actionPoly, self.actionPoint, self.actionRBox]:
+            action.setCheckable(True)
+            self.modeGroup.addAction(action)
         self.actionRect.setChecked(True)
 
         self.toolBar.addAction(self.actionOpen)
         self.toolBar.addSeparator()
-
         self.formatWidget = FormatSelectorWidget()
         self.toolBar.addWidget(self.formatWidget)
+        self.themeWidget = ThemeSelectorWidget()
+        self.toolBar.addWidget(self.themeWidget)
         self.toolBar.addSeparator()
-
         self.toolBar.addAction(self.actionRect)
         self.toolBar.addAction(self.actionPoly)
         self.toolBar.addAction(self.actionPoint)
         self.toolBar.addAction(self.actionRBox)
 
-        self.toolBar.addSeparator()
-        self.samWidget = QWidget()
-        self.samWidget.setStyleSheet("background-color: transparent;")
-        samLayout = QVBoxLayout(self.samWidget)
-        samLayout.setContentsMargins(5, 10, 5, 10)
-        samLayout.setAlignment(Qt.AlignCenter)
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.mainLayout.addWidget(self.splitter)
 
+        self.leftPanel = QWidget()
+        self.leftLayout = QVBoxLayout(self.leftPanel)
+        self.leftLayout.addWidget(QLabel("图集"))
+        self.listFiles = QListWidget()
+        self.listFiles.setViewMode(QListView.IconMode)
+        self.listFiles.setResizeMode(QListView.Adjust)
+        self.listFiles.setMovement(QListView.Static)
+        self.listFiles.setWrapping(True)
+        self.listFiles.setIconSize(QSize(110, 110))
+        self.listFiles.setGridSize(QSize(140, 150))
+        self.listFiles.setWordWrap(True)
+        self.leftLayout.addWidget(self.listFiles)
+
+        self.centerPanel = QWidget()
+        self.centerLayout = QVBoxLayout(self.centerPanel)
+        self.centerLayout.addWidget(QLabel("标注画布"))
+        self.view = CanvasView()
+        self.centerLayout.addWidget(self.view, 1)
+
+        self.samRow = QWidget()
+        self.samRowLayout = QHBoxLayout(self.samRow)
+        self.samRowLayout.setContentsMargins(0, 0, 0, 0)
+        self.samRowLayout.addWidget(QLabel("SAM"))
         self.samSwitch = SwitchControl()
-        self.samLabel = QLabel("SAM 智能辅助")
-        self.samLabel.setAlignment(Qt.AlignCenter)
-        self.samLabel.setStyleSheet("font-size: 11px; color: #94A3B8; margin-top: 5px;")
+        self.samRowLayout.addWidget(self.samSwitch)
+        self.samRowLayout.addWidget(QLabel("提示词"))
+        self.samPromptInput = QLineEdit()
+        self.samPromptInput.setPlaceholderText("输入提示词，如 dog")
+        self.samRowLayout.addWidget(self.samPromptInput, 1)
+        self.samPromptBtn = QPushButton("提交")
+        self.samRowLayout.addWidget(self.samPromptBtn)
+        self.samRefBtn = QPushButton("参考查找")
+        self.samRowLayout.addWidget(self.samRefBtn)
+        self.btnHelp = QPushButton("帮助")
+        self.samRowLayout.addWidget(self.btnHelp)
+        self.centerLayout.addWidget(self.samRow)
 
-        samLayout.addWidget(self.samSwitch, alignment=Qt.AlignCenter)
-        samLayout.addWidget(self.samLabel, alignment=Qt.AlignCenter)
-        self.toolBar.addWidget(self.samWidget)
-
-        # ==========================================
-        # 数据集处理按钮
-        # ==========================================
-        self.toolBar.addSeparator()  # 添加一条水平分割线
-
+        self.rightPanel = QWidget()
+        self.rightLayout = QVBoxLayout(self.rightPanel)
+        self.rightLayout.addWidget(QLabel("标注"))
+        self.rightLayout.addWidget(QLabel("标签"))
+        self.listClasses = QListWidget()
+        self.listClasses.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.rightLayout.addWidget(self.listClasses)
+        self.rightLayout.addWidget(QLabel("标注列表"))
+        self.annotationToolBox = QToolBox()
+        self.rectStatsList = QListWidget()
+        self.polyStatsList = QListWidget()
+        self.pointStatsList = QListWidget()
+        self.rboxStatsList = QListWidget()
+        for widget in (self.rectStatsList, self.polyStatsList, self.pointStatsList, self.rboxStatsList):
+            widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.rectStatsIndex = self.annotationToolBox.addItem(self.rectStatsList, "矩形标注")
+        self.polyStatsIndex = self.annotationToolBox.addItem(self.polyStatsList, "多边形标注")
+        self.pointStatsIndex = self.annotationToolBox.addItem(self.pointStatsList, "点标注")
+        self.rboxStatsIndex = self.annotationToolBox.addItem(self.rboxStatsList, "旋转框标注")
+        self.rightLayout.addWidget(self.annotationToolBox, 1)
         self.btnDatasetTool = QPushButton("数据集处理")
-        self.btnDatasetTool.setCursor(Qt.PointingHandCursor)
-        self.btnDatasetTool.setStyleSheet("""
-                    QPushButton {
-                        background-color: #0F172A;
-                        color: #94A3B8;
-                        border: 1px solid #334155;
-                        border-radius: 6px;
-                        padding: 10px 5px;
-                        margin: 10px 8px;
-                        font-weight: bold;
-                        font-size: 13px;
-                        font-family: "Microsoft YaHei";
-                    }
-                    QPushButton:hover {
-                        background-color: #1E293B;
-                        color: #22C55E;
-                        border-color: #22C55E;
-                    }
-                    QPushButton:pressed {
-                        background-color: #16a34a;
-                        color: #020617;
-                    }
-                """)
-        self.toolBar.addWidget(self.btnDatasetTool)
+        self.rightLayout.addWidget(self.btnDatasetTool)
+
+        self.splitter.addWidget(self.leftPanel)
+        self.splitter.addWidget(self.centerPanel)
+        self.splitter.addWidget(self.rightPanel)
+        self.splitter.setSizes([320, 860, 320])
+
+        self.statusBar = QStatusBar()
+        MainWindow.setStatusBar(self.statusBar)
+        self.coordLabel = QLabel("坐标: X: 0, Y: 0")
+        self.statusBar.addPermanentWidget(self.coordLabel)

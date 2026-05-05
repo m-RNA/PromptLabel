@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsLineItem, QGraphicsRectItem
 from PySide6.QtGui import QPixmap, QPolygonF, QPen, QColor, QBrush
 from PySide6.QtCore import Qt, QPointF, Signal, QRectF
-from core.shapes import RectShape, PolyShape, PointShape, RotatedRectShape, HandleItem
+from core.shapes import RectShape, PolyShape, PointShape, RotatedRectShape, HandleItem, color_for_label
 
 
 class CanvasMode:
@@ -98,6 +98,36 @@ class Canvas(QGraphicsScene):
             self.v_line.setLine(x, rect.top(), x, rect.bottom())
             self.mouse_moved.emit(int(x), int(y))
 
+    def get_active_label(self):
+        parent = self.parent()
+        if parent is None:
+            return ""
+        return getattr(parent, "active_label", "") or ""
+
+    def get_active_color(self):
+        label = self.get_active_label()
+        parent = self.parent()
+        if parent is not None:
+            class_colors = getattr(parent, "class_colors", {})
+            if label and label in class_colors:
+                return QColor(class_colors[label])
+        return color_for_label(label)
+
+    def apply_preview_style(self, item):
+        color = self.get_active_color()
+        if isinstance(item, QGraphicsRectItem):
+            item.setPen(QPen(color, 2, Qt.DashLine))
+            item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 50)))
+            return
+        if hasattr(item, "setPen") and not isinstance(item, RotatedRectShape):
+            item.setPen(QPen(color, 2, Qt.DashLine))
+        if hasattr(item, "setBrush") and not isinstance(item, RotatedRectShape):
+            item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 50)))
+        if isinstance(item, RotatedRectShape):
+            item.rect_item.setPen(QPen(color, 2, Qt.DashLine))
+            item.rect_item.setBrush(QBrush(QColor(color.red(), color.green(), color.blue(), 50)))
+            item.rotate_line.setPen(QPen(color, 1.5, Qt.DashLine))
+
     def mouseMoveEvent(self, event):
         pt = event.scenePos()
         self.update_crosshair(pt)
@@ -124,13 +154,14 @@ class Canvas(QGraphicsScene):
             if self.mode == CanvasMode.RECT:
                 self.temp_item = QGraphicsRectItem(rect)
                 self.temp_item.is_temp = True
-                self.temp_item.setPen(QPen(QColor(28, 126, 214), 2, Qt.DashLine))
+                self.apply_preview_style(self.temp_item)
 
             # 手动拉框时，调用全新的 RotatedRectShape 参数格式
             elif self.mode == CanvasMode.RBOX:
                 cx, cy = rect.center().x(), rect.center().y()
                 w, h = max(1, rect.width()), max(1, rect.height())
                 self.temp_item = RotatedRectShape(cx, cy, w, h, 0, is_temp=True)
+                self.apply_preview_style(self.temp_item)
 
             self.addItem(self.temp_item)
 
@@ -160,8 +191,7 @@ class Canvas(QGraphicsScene):
                 self.shape_drawn.emit(shape)
             else:
                 self.sam_hover_item = QGraphicsRectItem(rect)
-                self.sam_hover_item.setPen(QPen(QColor(0, 255, 0), 2, Qt.DashLine))
-                self.sam_hover_item.setBrush(QBrush(QColor(0, 255, 0, 50)))
+                self.apply_preview_style(self.sam_hover_item)
                 self.addItem(self.sam_hover_item)
 
         elif self.mode == CanvasMode.POLY:
@@ -171,8 +201,7 @@ class Canvas(QGraphicsScene):
                 self.shape_drawn.emit(shape)
             else:
                 self.sam_hover_item = PolyShape(QPolygonF(qpts), is_temp=True)
-                self.sam_hover_item.setPen(QPen(QColor(0, 255, 0), 2, Qt.DashLine))
-                self.sam_hover_item.setBrush(QBrush(QColor(0, 255, 0, 50)))
+                self.apply_preview_style(self.sam_hover_item)
                 self.addItem(self.sam_hover_item)
 
         # SAM 的 OBB 旋转框处理分支
@@ -185,6 +214,7 @@ class Canvas(QGraphicsScene):
                 self.shape_drawn.emit(shape)
             else:
                 self.sam_hover_item = RotatedRectShape(cx, cy, w, h, angle, is_temp=True)
+                self.apply_preview_style(self.sam_hover_item)
                 self.addItem(self.sam_hover_item)
 
     def mousePressEvent(self, event):
@@ -302,6 +332,7 @@ class Canvas(QGraphicsScene):
         else:
             if self.temp_item: self.removeItem(self.temp_item)
             self.temp_item = PolyShape(QPolygonF(display_pts), is_temp=True)
+            self.apply_preview_style(self.temp_item)
             self.addItem(self.temp_item)
 
     def finish_poly_shape(self):
