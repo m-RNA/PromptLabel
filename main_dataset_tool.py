@@ -345,46 +345,80 @@ class DatasetWorker(QThread):
 
 
 class RatioDialog(QDialog):
-    def __init__(self, current_ratios, parent=None):
+    def __init__(self, current_ratios, parent=None, theme="dark"):
         super().__init__(parent)
         self.setWindowTitle("设置划分比例")
         self.setFixedSize(340, 240)
-        self.setStyleSheet("""
-            QDialog { background-color: #ffffff; }
-            QLabel { font-family: "Microsoft YaHei"; font-size: 13px; color: #303133; }
+        if theme == "light":
+            self.setStyleSheet("""
+            QDialog { background-color: #f8fafc; }
+            QLabel { font-family: "Microsoft YaHei"; font-size: 13px; color: #1e293b; }
             QSpinBox {
-                border: 1px solid #dcdfe6;
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
                 border-radius: 4px;
                 padding: 6px;
                 font-size: 13px;
-                color: #606266;
+                color: #0f172a;
             }
-            QSpinBox:focus { border: 1px solid #409eff; }
+            QSpinBox:focus { border: 1px solid #22c55e; }
             QSpinBox::up-button, QSpinBox::down-button {
                 width: 20px;
-                background-color: #f5f7fa;
-                border-left: 1px solid #dcdfe6;
+                background-color: #f1f5f9;
+                border-left: 1px solid #cbd5e1;
             }
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover { background-color: #e9e9eb; }
-            
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover { background-color: #e2e8f0; }
             QPushButton {
-                background-color: #409eff;
-                color: white;
+                background-color: #16a34a;
+                color: #ffffff;
                 border: none;
                 border-radius: 4px;
                 padding: 8px 20px;
                 font-weight: bold;
             }
-            QPushButton:hover { background-color: #66b1ff; }
-            QPushButton:pressed { background-color: #3a8ee6; }
-        """)
+            QPushButton:hover { background-color: #22c55e; color: #052e16; }
+            QPushButton:pressed { background-color: #15803d; color: #ffffff; }
+            """)
+            header_color = "#64748b"
+        else:
+            self.setStyleSheet("""
+            QDialog { background-color: #020617; }
+            QLabel { font-family: "Microsoft YaHei"; font-size: 13px; color: #e2e8f0; }
+            QSpinBox {
+                background-color: #0f172a;
+                border: 1px solid #334155;
+                border-radius: 4px;
+                padding: 6px;
+                font-size: 13px;
+                color: #f8fafc;
+            }
+            QSpinBox:focus { border: 1px solid #22c55e; }
+            QSpinBox::up-button, QSpinBox::down-button {
+                width: 20px;
+                background-color: #1e293b;
+                border-left: 1px solid #334155;
+            }
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover { background-color: #334155; }
+            
+            QPushButton {
+                background-color: #16a34a;
+                color: #f8fafc;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #22c55e; color: #020617; }
+            QPushButton:pressed { background-color: #15803d; color: #f8fafc; }
+            """)
+            header_color = "#94a3b8"
         self.ratios = current_ratios
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
 
         header_label = QLabel("请分配数据集百分比（总和必须为 100%）")
-        header_label.setStyleSheet("color: #909399; font-size: 12px; margin-bottom: 10px;")
+        header_label.setStyleSheet(f"color: {header_color}; font-size: 12px; margin-bottom: 10px;")
         layout.addWidget(header_label)
 
         self.train_box = self.create_row("训练集 (Train) :", current_ratios[0] * 100, layout)
@@ -423,28 +457,29 @@ class RatioDialog(QDialog):
 
 
 class DatasetToolWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, theme="dark"):
         super().__init__()
+        self.theme = theme
         self.setWindowTitle("LuoHuaLabel - 数据集处理系统")
         self.resize(850, 650)
 
         # 整体应用偏灰色的背景，凸显内部白色卡片
         self.setStyleSheet("""
-            QMainWindow { background-color: #f0f2f5; }
+            QMainWindow { background-color: #020617; }
             QWidget { font-family: "Microsoft YaHei", sans-serif; }
 
-            QLabel { font-size: 13px; color: #606266; font-weight: bold; }
+            QLabel { font-size: 13px; color: #e2e8f0; font-weight: bold; }
 
             /* 表单输入框美化 */
             QLineEdit { 
-                border: 1px solid #dcdfe6; 
+                border: 1px solid #334155; 
                 border-radius: 4px; 
                 padding: 8px 12px; 
-                background: white; 
+                background: #0f172a; 
                 font-size: 13px; 
-                color: #303133;
+                color: #f8fafc;
             }
-            QLineEdit:focus { border: 1px solid #409eff; }
+            QLineEdit:focus { border: 1px solid #22c55e; background: #1e293b; }
 
             /* 默认按钮美化 */
             QPushButton#DefaultBtn { 
@@ -452,39 +487,40 @@ class DatasetToolWindow(QMainWindow):
                 padding: 8px 15px; 
                 font-weight: bold; 
                 font-size: 13px; 
-                border: 1px solid #dcdfe6; 
-                background: white; 
-                color: #606266; 
+                border: 1px solid #334155; 
+                background: #0f172a; 
+                color: #f8fafc; 
             }
-            QPushButton#DefaultBtn:hover { color: #409eff; border-color: #c6e2ff; background-color: #ecf5ff; }
+            QPushButton#DefaultBtn:hover { color: #86efac; border-color: #22c55e; background-color: #1e293b; }
 
             /* 下拉框美化 */
             QComboBox { 
-                border: 1px solid #dcdfe6; 
+                border: 1px solid #334155; 
                 border-radius: 4px; 
                 padding: 8px 12px; 
-                background: white; 
-                color: #606266;
+                background: #0f172a; 
+                color: #f8fafc;
             }
-            QComboBox:hover { border: 1px solid #c0c4cc; }
+            QComboBox:hover { border: 1px solid #475569; }
             QComboBox::drop-down { border: none; width: 30px; }
             QComboBox QAbstractItemView {
-                border: 1px solid #e4e7ed;
+                border: 1px solid #334155;
                 border-radius: 4px;
-                background-color: white;
-                selection-background-color: #f5f7fa;
-                selection-color: #409eff;
+                background-color: #0f172a;
+                color: #f8fafc;
+                selection-background-color: #1e293b;
+                selection-color: #86efac;
             }
             
             /* 控制台终端美化 */
             QTextEdit { 
-                background-color: #1e1e1e; 
-                color: #67c23a; 
+                background-color: #020617; 
+                color: #86efac; 
                 font-family: Consolas, monospace; 
                 border-radius: 6px; 
                 padding: 12px; 
                 font-size: 13px;
-                border: 1px solid #333333;
+                border: 1px solid #334155;
             }
         """)
 
@@ -499,22 +535,22 @@ class DatasetToolWindow(QMainWindow):
         # -------------------------------------------------------------
         # 包含配置和表单
         # -------------------------------------------------------------
-        card_frame = QFrame()
-        card_frame.setStyleSheet("""
+        self.card_frame = QFrame()
+        self.card_frame.setStyleSheet("""
             QFrame {
-                background-color: #ffffff;
+                background-color: #0f172a;
                 border-radius: 8px;
-                border: 1px solid #ebeef5;
+                border: 1px solid #334155;
             }
         """)
         # 添加阴影效果
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(15)
-        shadow.setColor(QColor(0, 0, 0, 15))
+        shadow.setColor(QColor(0, 0, 0, 60))
         shadow.setOffset(0, 2)
-        card_frame.setGraphicsEffect(shadow)
+        self.card_frame.setGraphicsEffect(shadow)
 
-        card_layout = QVBoxLayout(card_frame)
+        card_layout = QVBoxLayout(self.card_frame)
         card_layout.setContentsMargins(20, 25, 20, 25)
         card_layout.setSpacing(15)
 
@@ -552,10 +588,10 @@ class DatasetToolWindow(QMainWindow):
         card_layout.addLayout(grid_layout)
 
         # 分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("border-top: 1px solid #ebeef5; margin: 5px 0px;")
-        card_layout.addWidget(line)
+        self.divider = QFrame()
+        self.divider.setFrameShape(QFrame.HLine)
+        self.divider.setStyleSheet("border-top: 1px solid #334155; margin: 5px 0px;")
+        card_layout.addWidget(self.divider)
 
         # 模式与比例配置行
         opt_layout = QHBoxLayout()
@@ -577,7 +613,7 @@ class DatasetToolWindow(QMainWindow):
         opt_layout.addWidget(self.ratio_btn)
 
         card_layout.addLayout(opt_layout)
-        main_layout.addWidget(card_frame)
+        main_layout.addWidget(self.card_frame)
 
         # -------------------------------------------------------------
         # 第二部分：执行按钮
@@ -586,17 +622,17 @@ class DatasetToolWindow(QMainWindow):
         self.start_btn.setCursor(Qt.PointingHandCursor)
         self.start_btn.setStyleSheet("""
             QPushButton { 
-                background-color: #409eff; 
-                color: white; 
+                background-color: #16a34a; 
+                color: #f8fafc; 
                 font-size: 16px; 
                 font-weight: bold;
                 padding: 12px; 
                 border-radius: 6px; 
                 border: none; 
             }
-            QPushButton:hover { background-color: #66b1ff; }
-            QPushButton:pressed { background-color: #3a8ee6; }
-            QPushButton:disabled { background-color: #a0cfff; color: #f0f0f0; }
+            QPushButton:hover { background-color: #22c55e; color: #020617; }
+            QPushButton:pressed { background-color: #15803d; color: #f8fafc; }
+            QPushButton:disabled { background-color: #334155; color: #94a3b8; }
         """)
         self.start_btn.clicked.connect(self.start_processing)
         main_layout.addWidget(self.start_btn)
@@ -605,20 +641,131 @@ class DatasetToolWindow(QMainWindow):
         # 运行控制台
         # -------------------------------------------------------------
         console_label = QLabel("🖥️ 处理日志台")
-        console_label.setStyleSheet("color: #909399; font-size: 12px; margin-top: 5px;")
-        main_layout.addWidget(console_label)
+        console_label.setStyleSheet("color: #94a3b8; font-size: 12px; margin-top: 5px;")
+        self.console_label = console_label
+        main_layout.addWidget(self.console_label)
 
         self.console = QTextEdit()
         self.console.setReadOnly(True)
         # 让控制台占据下方所有的剩余空间
         main_layout.addWidget(self.console, 1)
+        self.apply_theme(theme)
+
+    def apply_theme(self, theme="dark"):
+        self.theme = theme
+        if theme == "light":
+            self.setStyleSheet("""
+                QMainWindow { background-color: #f8fafc; }
+                QWidget { font-family: "Microsoft YaHei", sans-serif; }
+                QLabel { font-size: 13px; color: #1e293b; font-weight: bold; }
+                QLineEdit, QComboBox {
+                    border: 1px solid #cbd5e1;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                    background: #ffffff;
+                    font-size: 13px;
+                    color: #0f172a;
+                }
+                QLineEdit:focus, QComboBox:focus { border: 1px solid #22c55e; }
+                QPushButton#DefaultBtn {
+                    border-radius: 4px;
+                    padding: 8px 15px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 1px solid #cbd5e1;
+                    background: #ffffff;
+                    color: #0f172a;
+                }
+                QPushButton#DefaultBtn:hover { color: #15803d; border-color: #22c55e; background-color: #ecfdf5; }
+                QComboBox::drop-down { border: none; width: 30px; }
+                QComboBox QAbstractItemView {
+                    border: 1px solid #cbd5e1;
+                    border-radius: 4px;
+                    background-color: #ffffff;
+                    color: #0f172a;
+                    selection-background-color: #dcfce7;
+                    selection-color: #14532d;
+                }
+                QTextEdit {
+                    background-color: #ffffff;
+                    color: #15803d;
+                    font-family: Consolas, monospace;
+                    border-radius: 6px;
+                    padding: 12px;
+                    font-size: 13px;
+                    border: 1px solid #cbd5e1;
+                }
+            """)
+            self.card_frame.setStyleSheet("QFrame { background-color: #ffffff; border-radius: 8px; border: 1px solid #cbd5e1; }")
+            self.divider.setStyleSheet("border-top: 1px solid #cbd5e1; margin: 5px 0px;")
+            self.console_label.setStyleSheet("color: #64748b; font-size: 12px; margin-top: 5px;")
+            self.start_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #16a34a;
+                    color: #ffffff;
+                    font-size: 16px;
+                    font-weight: bold;
+                    padding: 12px;
+                    border-radius: 6px;
+                    border: none;
+                }
+                QPushButton:hover { background-color: #22c55e; color: #052e16; }
+                QPushButton:pressed { background-color: #15803d; color: #ffffff; }
+                QPushButton:disabled { background-color: #cbd5e1; color: #64748b; }
+            """)
+        else:
+            self.setStyleSheet("""
+                QMainWindow { background-color: #020617; }
+                QWidget { font-family: "Microsoft YaHei", sans-serif; }
+                QLabel { font-size: 13px; color: #e2e8f0; font-weight: bold; }
+                QLineEdit, QComboBox {
+                    border: 1px solid #334155;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                    background: #0f172a;
+                    font-size: 13px;
+                    color: #f8fafc;
+                }
+                QLineEdit:focus, QComboBox:focus { border: 1px solid #22c55e; background: #1e293b; }
+                QPushButton#DefaultBtn {
+                    border-radius: 4px;
+                    padding: 8px 15px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 1px solid #334155;
+                    background: #0f172a;
+                    color: #f8fafc;
+                }
+                QPushButton#DefaultBtn:hover { color: #86efac; border-color: #22c55e; background-color: #1e293b; }
+                QComboBox::drop-down { border: none; width: 30px; }
+                QComboBox QAbstractItemView {
+                    border: 1px solid #334155;
+                    border-radius: 4px;
+                    background-color: #0f172a;
+                    color: #f8fafc;
+                    selection-background-color: #1e293b;
+                    selection-color: #86efac;
+                }
+                QTextEdit {
+                    background-color: #020617;
+                    color: #86efac;
+                    font-family: Consolas, monospace;
+                    border-radius: 6px;
+                    padding: 12px;
+                    font-size: 13px;
+                    border: 1px solid #334155;
+                }
+            """)
+            self.card_frame.setStyleSheet("QFrame { background-color: #0f172a; border-radius: 8px; border: 1px solid #334155; }")
+            self.divider.setStyleSheet("border-top: 1px solid #334155; margin: 5px 0px;")
+            self.console_label.setStyleSheet("color: #94a3b8; font-size: 12px; margin-top: 5px;")
 
     def select_dir(self, line_edit):
         d = QFileDialog.getExistingDirectory(self, "选择目录")
         if d: line_edit.setText(d)
 
     def open_ratio_dialog(self):
-        dlg = RatioDialog(self.ratios, self)
+        dlg = RatioDialog(self.ratios, self, self.theme)
         if dlg.exec():
             self.ratios = dlg.ratios
             t, v, te = [int(r * 100) for r in self.ratios]

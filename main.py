@@ -408,20 +408,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _build_dark_palette(self):
         palette = QPalette(self._default_palette)
         role_colors = {
-            QPalette.Window: QColor(53, 53, 53),
-            QPalette.WindowText: QColor(240, 240, 240),
-            QPalette.Base: QColor(35, 35, 35),
-            QPalette.AlternateBase: QColor(53, 53, 53),
-            QPalette.ToolTipBase: QColor(53, 53, 53),
-            QPalette.ToolTipText: QColor(240, 240, 240),
-            QPalette.Text: QColor(240, 240, 240),
-            QPalette.Button: QColor(53, 53, 53),
-            QPalette.ButtonText: QColor(240, 240, 240),
+            QPalette.Window: QColor(2, 6, 23),
+            QPalette.WindowText: QColor(248, 250, 252),
+            QPalette.Base: QColor(15, 23, 42),
+            QPalette.AlternateBase: QColor(30, 41, 59),
+            QPalette.ToolTipBase: QColor(17, 24, 39),
+            QPalette.ToolTipText: QColor(248, 250, 252),
+            QPalette.Text: QColor(248, 250, 252),
+            QPalette.Button: QColor(15, 23, 42),
+            QPalette.ButtonText: QColor(248, 250, 252),
             QPalette.BrightText: QColor(255, 85, 85),
-            QPalette.Link: QColor(42, 130, 218),
-            QPalette.Highlight: QColor(42, 130, 218),
-            QPalette.HighlightedText: QColor(255, 255, 255),
-            QPalette.PlaceholderText: QColor(170, 170, 170),
+            QPalette.Link: QColor(34, 197, 94),
+            QPalette.Highlight: QColor(34, 197, 94),
+            QPalette.HighlightedText: QColor(2, 6, 23),
+            QPalette.PlaceholderText: QColor(148, 163, 184),
         }
         for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
             for role, color in role_colors.items():
@@ -430,6 +430,41 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 else:
                     palette.setColor(group, role, color)
         return palette
+
+    def _build_light_palette(self):
+        palette = QPalette(self._default_palette)
+        role_colors = {
+            QPalette.Window: QColor(248, 250, 252),
+            QPalette.WindowText: QColor(15, 23, 42),
+            QPalette.Base: QColor(255, 255, 255),
+            QPalette.AlternateBase: QColor(248, 250, 252),
+            QPalette.ToolTipBase: QColor(255, 255, 255),
+            QPalette.ToolTipText: QColor(15, 23, 42),
+            QPalette.Text: QColor(15, 23, 42),
+            QPalette.Button: QColor(255, 255, 255),
+            QPalette.ButtonText: QColor(15, 23, 42),
+            QPalette.BrightText: QColor(220, 38, 38),
+            QPalette.Link: QColor(21, 128, 61),
+            QPalette.Highlight: QColor(34, 197, 94),
+            QPalette.HighlightedText: QColor(255, 255, 255),
+            QPalette.PlaceholderText: QColor(100, 116, 139),
+        }
+        for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
+            for role, color in role_colors.items():
+                if group == QPalette.Disabled and role in (QPalette.Text, QPalette.ButtonText, QPalette.WindowText):
+                    palette.setColor(group, role, QColor(148, 163, 184))
+                else:
+                    palette.setColor(group, role, color)
+        return palette
+
+    def _load_theme_stylesheet(self, resolved_theme):
+        filename = "style.qss" if resolved_theme == "dark" else "style_light.qss"
+        qss_path = os.path.join(BASE_DIR, "ui", filename)
+        try:
+            with open(qss_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            return ""
 
     def _resolved_system_theme(self):
         app = QApplication.instance()
@@ -443,8 +478,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.current_theme = theme_key
         app = QApplication.instance()
         resolved = self._resolved_system_theme() if theme_key == "system" else theme_key
-        app.setPalette(self._build_dark_palette() if resolved == "dark" else self._default_palette)
+        if resolved == "dark":
+            app.setPalette(self._build_dark_palette())
+            app.setStyleSheet(self._load_theme_stylesheet("dark"))
+        else:
+            app.setPalette(self._build_light_palette())
+            app.setStyleSheet(self._load_theme_stylesheet("light"))
         self.themeWidget.set_theme(theme_key)
+        if hasattr(self, "dataset_window") and self.dataset_window is not None:
+            self.dataset_window.apply_theme(resolved)
         if persist:
             self.settings.setValue("theme", theme_key)
 
@@ -747,7 +789,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def open_dataset_tool(self):
         try:
             if not hasattr(self, 'dataset_window') or self.dataset_window is None:
-                self.dataset_window = DatasetToolWindow()
+                resolved = self._resolved_system_theme() if self.current_theme == "system" else self.current_theme
+                self.dataset_window = DatasetToolWindow(resolved)
             # 显示窗口
             self.dataset_window.show()
             # 把窗口强制拉到最前面
