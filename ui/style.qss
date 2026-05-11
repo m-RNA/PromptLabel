@@ -384,15 +384,28 @@ QToolBox::tab {
     border: 1px solid #334155;
     border-radius: 6px;
     color: #e2e8f0;
+    font-size: 13px;
     font-weight: 700;
+    height: 30px;
     margin-top: 4px;
-    min-height: 22px;
-    padding: 7px 10px;
+    padding: 0px 10px;
 }
 
 QToolBox::tab:selected {
     background-color: #1e293b;
     border-color: #475569;
+    color: #86efac;
+}
+
+QToolBox#annotationToolBox::tab {
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 700;
+    height: 32px;
+    padding: 0px 10px;
+}
+
+QToolBox#annotationToolBox::tab:selected {
     color: #86efac;
 }
 

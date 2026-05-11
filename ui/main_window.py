@@ -245,6 +245,7 @@ class Ui_MainWindow(object):
         self.rightLayout.addWidget(self.listClasses)
         self.rightLayout.addWidget(self.annotationListTitle)
         self.annotationToolBox = QToolBox()
+        self.annotationToolBox.setObjectName("annotationToolBox")
         self.rectStatsList = QListWidget()
         self.polyStatsList = QListWidget()
         self.pointStatsList = QListWidget()

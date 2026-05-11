@@ -349,16 +349,29 @@ QToolBox::tab {
     border: 1px solid #cbd5e1;
     border-radius: 6px;
     color: #1e293b;
+    font-size: 13px;
     font-weight: 700;
+    height: 30px;
     margin-top: 4px;
-    min-height: 22px;
-    padding: 7px 10px;
+    padding: 0px 10px;
 }
 
 QToolBox::tab:selected {
     background-color: #ecfdf5;
     border-color: #86efac;
     color: #15803d;
+}
+
+QToolBox#annotationToolBox::tab {
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 700;
+    height: 32px;
+    padding: 0px 10px;
+}
+
+QToolBox#annotationToolBox::tab:selected {
+    color: #14532d;
 }
 
 QStatusBar {
