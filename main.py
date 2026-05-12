@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
     QPushButton, QHBoxLayout
 )
-from PySide6.QtCore import Qt, QPointF, QRectF, QSettings
+from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QEvent, QSize
 from PySide6.QtGui import (
     QPolygonF, QColor, QBrush, QPixmap, QIcon, QPalette, QCursor, QPainter, QPen,
     QShortcut, QKeySequence
@@ -170,6 +170,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.shape_to_item = {}
         self._default_palette = QApplication.instance().palette()
         self._last_right_panel_width = 320
+        self._file_grid_icon_size = QSize()
 
         self.modeLabel = QLabel("模式: 矩形标注")
         self.statusBar.addWidget(self.modeLabel)
@@ -192,6 +193,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.scene.state_changed.connect(self.push_state)
 
         self._connect_signals()
+        self.listFiles.installEventFilter(self)
+        self._update_file_grid_metrics()
         self._setup_shortcuts()
         self.formatWidget.set_format(self.current_format)
         self.themeWidget.set_theme(self.current_theme)
@@ -351,6 +354,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             DialogOver(self, "点标注模式下不可使用 SAM 提示词提取", "提示", "warning")
             return
         self.samSwitch.setChecked(not self.samSwitch.isChecked())
+
+    def eventFilter(self, watched, event):
+        if watched is self.listFiles and event.type() == QEvent.Resize:
+            self._update_file_grid_metrics(refresh_icons=True)
+        return super().eventFilter(watched, event)
+
+    def _update_file_grid_metrics(self, refresh_icons=False):
+        viewport_width = max(1, self.listFiles.viewport().width())
+        scrollbar_width = self.listFiles.verticalScrollBar().sizeHint().width()
+        item_width = max(120, viewport_width - scrollbar_width - 18)
+        icon_width = max(96, item_width - 14)
+        icon_height = max(96, int(icon_width * 0.82))
+        icon_size = QSize(icon_width, icon_height)
+        if icon_size == self._file_grid_icon_size:
+            return
+        self._file_grid_icon_size = icon_size
+        self.listFiles.setIconSize(icon_size)
+        self.listFiles.setGridSize(QSize(item_width, icon_height + 42))
+        if refresh_icons:
+            self._refresh_file_thumbnails()
+
+    def _refresh_file_thumbnails(self):
+        for index in range(self.listFiles.count()):
+            item = self.listFiles.item(index)
+            image_path = item.data(Qt.UserRole)
+            if image_path:
+                item.setIcon(self._make_file_thumbnail_icon(image_path))
 
     def _make_color_icon(self, color_value):
         pixmap = QPixmap(12, 12)
@@ -1388,6 +1418,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.current_dir = dir_path
         self.settings.setValue("last_dir", dir_path)
         self.listFiles.clear()
+        self._update_file_grid_metrics()
         self.load_classes(dir_path)
         for f in sorted(os.listdir(dir_path)):
             if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
