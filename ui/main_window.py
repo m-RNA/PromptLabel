@@ -210,8 +210,8 @@ class Ui_MainWindow(object):
         self.listFiles.setResizeMode(QListView.Adjust)
         self.listFiles.setMovement(QListView.Static)
         self.listFiles.setWrapping(True)
-        self.listFiles.setIconSize(QSize(110, 110))
-        self.listFiles.setGridSize(QSize(140, 150))
+        self.listFiles.setIconSize(QSize(132, 132))
+        self.listFiles.setGridSize(QSize(148, 172))
         self.listFiles.setWordWrap(True)
         self.leftLayout.addWidget(self.listFiles)
 

@@ -369,6 +369,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if source.isNull():
             return QIcon()
         target_size = self.listFiles.iconSize()
+        thumb = QPixmap(target_size)
+        thumb.fill(Qt.transparent)
         scaled = source.scaled(
             target_size,
             Qt.KeepAspectRatioByExpanding,
@@ -376,7 +378,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         )
         x = max(0, (scaled.width() - target_size.width()) // 2)
         y = max(0, (scaled.height() - target_size.height()) // 2)
-        thumb = scaled.copy(x, y, target_size.width(), target_size.height())
+        cropped = scaled.copy(x, y, target_size.width(), target_size.height())
+        painter = QPainter(thumb)
+        painter.drawPixmap(0, 0, cropped)
+        painter.end()
         return QIcon(thumb)
 
     def has_annotation_for_image(self, image_path):
