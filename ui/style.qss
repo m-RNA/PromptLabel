@@ -220,10 +220,15 @@ QTableView::item:selected {
 }
 
 QListWidget#fileGrid::item {
+    background-color: transparent;
     border: 1px solid transparent;
     border-radius: 7px;
     margin: 4px;
     padding: 6px;
+}
+
+QListWidget#fileGrid {
+    show-decoration-selected: 1;
 }
 
 QListWidget#fileGrid::item:hover {
