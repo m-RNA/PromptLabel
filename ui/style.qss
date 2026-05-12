@@ -202,6 +202,17 @@ QSplitter::handle:hover {
     background-color: #334155;
 }
 
+QSplitter#rightInnerSplitter::handle {
+    background-color: #334155;
+    border-radius: 2px;
+    height: 6px;
+    margin: 4px 0px;
+}
+
+QSplitter#rightInnerSplitter::handle:hover {
+    background-color: #22c55e;
+}
+
 QGraphicsView {
     background-color: #000000;
     border: 1px solid #334155;
