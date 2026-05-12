@@ -4,11 +4,14 @@ import json
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
-    QComboBox,
+    QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
     QPushButton, QHBoxLayout
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings
-from PySide6.QtGui import QPolygonF, QColor, QBrush, QPixmap, QIcon, QPalette, QCursor, QPainter, QPen
+from PySide6.QtGui import (
+    QPolygonF, QColor, QBrush, QPixmap, QIcon, QPalette, QCursor, QPainter, QPen,
+    QShortcut, QKeySequence
+)
 
 from main_dataset_tool import DatasetToolWindow
 from ui.main_window import Ui_MainWindow
@@ -188,6 +191,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.scene.state_changed.connect(self.push_state)
 
         self._connect_signals()
+        self._setup_shortcuts()
         self.formatWidget.set_format(self.current_format)
         self.themeWidget.set_theme(self.current_theme)
         self._set_mode(CanvasMode.RECT)
@@ -248,6 +252,86 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             )
 
         self.btnHelp.clicked.connect(self.show_help_dialog)
+
+    def _setup_shortcuts(self):
+        self._shortcuts = []
+        shortcut_map = [
+            ("Ctrl+S", lambda: self.save_annotation(self.current_format), True),
+            ("Ctrl+Z", self.undo, True),
+            ("Ctrl+Y", self.redo, True),
+            ("Ctrl+Shift+Z", self.redo, True),
+            ("A", self.previous_image, False),
+            ("Left", self.previous_image, False),
+            ("D", self.next_image, False),
+            ("Right", self.next_image, False),
+            ("Delete", self.delete_selected_shapes, False),
+            ("Backspace", self.delete_selected_shapes, False),
+            ("E", self.edit_selected_shape_label, False),
+            ("F1", self.show_help_dialog, True),
+            ("R", lambda: self._set_mode(CanvasMode.RECT), False),
+            ("P", lambda: self._set_mode(CanvasMode.POLY), False),
+            ("T", lambda: self._set_mode(CanvasMode.POINT), False),
+            ("O", lambda: self._set_mode(CanvasMode.RBOX), False),
+            ("Q", self.toggle_sam_shortcut, False),
+        ]
+        for sequence, callback, allow_text_focus in shortcut_map:
+            self._add_shortcut(sequence, callback, allow_text_focus)
+        for index in range(1, 10):
+            self._add_shortcut(str(index), lambda idx=index - 1: self.set_label_by_index(idx), False)
+
+    def _add_shortcut(self, sequence, callback, allow_text_focus=False):
+        shortcut = QShortcut(QKeySequence(sequence), self)
+        shortcut.setContext(Qt.ApplicationShortcut)
+        shortcut.activated.connect(lambda cb=callback, allow=allow_text_focus: self._run_shortcut(cb, allow))
+        self._shortcuts.append(shortcut)
+
+    def _run_shortcut(self, callback, allow_text_focus=False):
+        if not allow_text_focus and self._text_input_has_focus():
+            return
+        callback()
+
+    def _text_input_has_focus(self):
+        widget = QApplication.focusWidget()
+        return isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit))
+
+    def set_label_by_index(self, index):
+        if 0 <= index < len(self.class_list):
+            self.set_active_label(self.class_list[index])
+
+    def previous_image(self):
+        current_idx = self.listFiles.currentRow()
+        if current_idx > 0:
+            self.listFiles.setCurrentRow(current_idx - 1)
+
+    def next_image(self):
+        current_idx = self.listFiles.currentRow()
+        if current_idx < self.listFiles.count() - 1:
+            self.listFiles.setCurrentRow(current_idx + 1)
+
+    def delete_selected_shapes(self):
+        selected_items = [
+            item for item in self.scene.selectedItems()
+            if isinstance(item, (RectShape, PolyShape, PointShape, RotatedRectShape))
+        ]
+        if not selected_items:
+            return
+        for item in selected_items:
+            self.scene.removeItem(item)
+        self.scene.state_changed.emit()
+        self.update_annotation_panel()
+        self.auto_save_annotation()
+
+    def edit_selected_shape_label(self):
+        for item in self.scene.selectedItems():
+            if hasattr(item, "label"):
+                self.edit_shape_label(item)
+                break
+
+    def toggle_sam_shortcut(self):
+        if self.scene.mode == CanvasMode.POINT:
+            DialogOver(self, "点标注模式下不可使用 SAM 提示词提取", "提示", "warning")
+            return
+        self.samSwitch.setChecked(not self.samSwitch.isChecked())
 
     def _make_color_icon(self, color_value):
         pixmap = QPixmap(12, 12)
@@ -1605,6 +1689,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super().closeEvent(event)
 
     def keyPressEvent(self, event):
+        super().keyPressEvent(event)
+        return
         key = event.key()
         modifiers = event.modifiers()
 
