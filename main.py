@@ -169,6 +169,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.annotation_item_syncing = False
         self.shape_to_item = {}
         self._default_palette = QApplication.instance().palette()
+        self._last_right_panel_width = 320
 
         self.modeLabel = QLabel("模式: 矩形标注")
         self.statusBar.addWidget(self.modeLabel)
@@ -217,6 +218,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionPoly.triggered.connect(lambda checked=False: self._set_mode(CanvasMode.POLY))
         self.actionPoint.triggered.connect(lambda checked=False: self._set_mode(CanvasMode.POINT))
         self.actionRBox.triggered.connect(lambda checked=False: self._set_mode(CanvasMode.RBOX))
+        self.actionToggleRightPanel.toggled.connect(self.set_right_panel_visible)
 
         self.samSwitch.toggled.connect(self.on_sam_toggled)
 
@@ -308,6 +310,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         current_idx = self.listFiles.currentRow()
         if current_idx < self.listFiles.count() - 1:
             self.listFiles.setCurrentRow(current_idx + 1)
+
+    def set_right_panel_visible(self, visible):
+        sizes = self.splitter.sizes()
+        if len(sizes) < 3:
+            self.rightPanel.setVisible(visible)
+            return
+        if visible:
+            right_width = self._last_right_panel_width or 320
+            remaining = max(1, sizes[1] - right_width)
+            self.rightPanel.setVisible(True)
+            self.splitter.setSizes([sizes[0], remaining, right_width])
+            return
+        if sizes[2] > 0:
+            self._last_right_panel_width = sizes[2]
+        self.splitter.setSizes([sizes[0], sizes[1] + sizes[2], 0])
+        self.rightPanel.setVisible(False)
 
     def delete_selected_shapes(self):
         selected_items = [

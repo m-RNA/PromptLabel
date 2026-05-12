@@ -169,6 +169,9 @@ class Ui_MainWindow(object):
         self.actionPoly = QAction("多边形 (P)", MainWindow)
         self.actionPoint = QAction("点 (T)", MainWindow)
         self.actionRBox = QAction("旋转框 (O)", MainWindow)
+        self.actionToggleRightPanel = QAction("右侧面板", MainWindow)
+        self.actionToggleRightPanel.setCheckable(True)
+        self.actionToggleRightPanel.setChecked(True)
 
         self.modeGroup = QActionGroup(MainWindow)
         for action in [self.actionRect, self.actionPoly, self.actionPoint, self.actionRBox]:
@@ -187,6 +190,8 @@ class Ui_MainWindow(object):
         self.toolBar.addAction(self.actionPoly)
         self.toolBar.addAction(self.actionPoint)
         self.toolBar.addAction(self.actionRBox)
+        self.toolBar.addSeparator()
+        self.toolBar.addAction(self.actionToggleRightPanel)
 
         self.splitter = QSplitter(Qt.Horizontal)
         self.mainLayout.addWidget(self.splitter)
@@ -263,6 +268,7 @@ class Ui_MainWindow(object):
         self.splitter.addWidget(self.leftPanel)
         self.splitter.addWidget(self.centerPanel)
         self.splitter.addWidget(self.rightPanel)
+        self.splitter.setCollapsible(2, True)
         self.splitter.setSizes([320, 860, 320])
 
         self.statusBar = QStatusBar()
