@@ -61,13 +61,22 @@ QToolBar {
     spacing: 12px;
 }
 
+QLabel#toolbarFieldLabel {
+    color: #475569;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 QToolButton {
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: 8px;
     color: #475569;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
     font-size: 13px;
     font-weight: 600;
+    min-width: 72px;
     padding: 8px;
 }
 
@@ -86,6 +95,25 @@ QToolButton:checked {
 QToolButton::menu-indicator {
     image: none;
     width: 0px;
+}
+
+QPushButton#toolbarSelectButton,
+QComboBox#toolbarThemeCombo {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    color: #0f172a;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 18px;
+    padding: 7px 10px;
+}
+
+QPushButton#toolbarSelectButton:hover,
+QComboBox#toolbarThemeCombo:hover {
+    background-color: #f1f5f9;
+    border-color: #94a3b8;
 }
 
 QFrame,
