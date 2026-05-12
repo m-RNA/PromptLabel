@@ -364,6 +364,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         painter.end()
         return QIcon(pixmap)
 
+    def _make_file_thumbnail_icon(self, image_path):
+        source = QPixmap(image_path)
+        if source.isNull():
+            return QIcon()
+        target_size = self.listFiles.iconSize()
+        scaled = source.scaled(
+            target_size,
+            Qt.KeepAspectRatioByExpanding,
+            Qt.SmoothTransformation
+        )
+        x = max(0, (scaled.width() - target_size.width()) // 2)
+        y = max(0, (scaled.height() - target_size.height()) // 2)
+        thumb = scaled.copy(x, y, target_size.width(), target_size.height())
+        return QIcon(thumb)
+
     def has_annotation_for_image(self, image_path):
         base_path = os.path.splitext(image_path)[0]
         return any(os.path.exists(base_path + ext) for ext in (".json", ".txt", ".xml"))
@@ -1378,14 +1393,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item.setData(Qt.UserRole, full_path)
                 item.setData(Qt.UserRole + 1, f)
                 item.setToolTip(full_path)
-                thumb = QPixmap(full_path)
-                if not thumb.isNull():
-                    thumb = thumb.scaled(
-                        self.listFiles.iconSize(),
-                        Qt.KeepAspectRatio,
-                        Qt.SmoothTransformation
-                    )
-                    item.setIcon(QIcon(thumb))
+                icon = self._make_file_thumbnail_icon(full_path)
+                if not icon.isNull():
+                    item.setIcon(icon)
                 item.setTextAlignment(Qt.AlignCenter)
                 self.listFiles.addItem(item)
         if self.listFiles.count() > 0:
