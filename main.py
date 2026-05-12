@@ -273,6 +273,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("T", lambda: self._set_mode(CanvasMode.POINT), False),
             ("O", lambda: self._set_mode(CanvasMode.RBOX), False),
             ("Q", self.toggle_sam_shortcut, False),
+            ("Space", self.toggle_sam_shortcut, False),
         ]
         for sequence, callback, allow_text_focus in shortcut_map:
             self._add_shortcut(sequence, callback, allow_text_focus)
