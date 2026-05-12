@@ -673,6 +673,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.auto_save_annotation()
         self.push_state()
 
+    def delete_shapes(self, shapes):
+        valid_shapes = [
+            shape for shape in shapes
+            if isinstance(shape, (RectShape, PolyShape, PointShape, RotatedRectShape)) and shape.scene() is self.scene
+        ]
+        if not valid_shapes:
+            return
+        for shape in valid_shapes:
+            self.scene.removeItem(shape)
+        self.scene.state_changed.emit()
+        self.update_annotation_panel()
+        self.auto_save_annotation()
+        self.push_state()
+
     def edit_annotation_item(self, item, widget):
         shape = item.data(Qt.UserRole) if item else None
         if shape is not None:
@@ -712,6 +726,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         item = widget.itemAt(pos)
         if not item or item.data(Qt.UserRole) is None:
             return
+        if not item.isSelected():
+            widget.clearSelection()
+            widget.setCurrentItem(item)
+            item.setSelected(True)
+        selected_shapes = [
+            selected.data(Qt.UserRole)
+            for selected in widget.selectedItems()
+            if selected.data(Qt.UserRole) is not None
+        ]
+        self._select_shapes_on_canvas(selected_shapes, focus_view=True)
+        menu = QMenu(self)
+        edit_action = menu.addAction("修改标签")
+        edit_action.setEnabled(len(selected_shapes) == 1)
+        delete_action = menu.addAction(f"删除 {len(selected_shapes)} 个标注")
+        action = menu.exec(widget.mapToGlobal(pos))
+        if action == edit_action and selected_shapes:
+            self.edit_shape_label(selected_shapes[0])
+        elif action == delete_action:
+            self.delete_shapes(selected_shapes)
+        return
         widget.setCurrentItem(item)
         shape = item.data(Qt.UserRole)
         self._select_shape_on_canvas(shape, focus_view=True)
