@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
     QGraphicsView, QLabel, QLineEdit, QPushButton, QStatusBar, QMenu,
-    QSplitter, QListView, QToolBox, QComboBox, QAbstractItemView
+    QSplitter, QListView, QToolBox, QComboBox, QAbstractItemView, QTreeWidget
 )
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QAction, QActionGroup, QPainter
@@ -228,8 +228,10 @@ class Ui_MainWindow(object):
         self.samSwitch = SwitchControl()
         self.samRowLayout.addWidget(self.samSwitch)
         self.samRowLayout.addWidget(QLabel("提示词"))
-        self.samPromptInput = QLineEdit()
-        self.samPromptInput.setPlaceholderText("输入提示词，如 dog")
+        self.samPromptInput = QComboBox()
+        self.samPromptInput.setEditable(True)
+        self.samPromptInput.setInsertPolicy(QComboBox.NoInsert)
+        self.samPromptInput.lineEdit().setPlaceholderText("输入或选择提示词，如 dog")
         self.samRowLayout.addWidget(self.samPromptInput, 1)
         self.samPromptBtn = QPushButton("提交")
         self.samRowLayout.addWidget(self.samPromptBtn)
@@ -257,7 +259,8 @@ class Ui_MainWindow(object):
         self.labelPanelLayout.setContentsMargins(0, 0, 0, 0)
         self.labelPanelLayout.setSpacing(6)
         self.labelPanelLayout.addWidget(self.labelTitle)
-        self.listClasses = QListWidget()
+        self.listClasses = QTreeWidget()
+        self.listClasses.setHeaderHidden(True)
         self.listClasses.setContextMenuPolicy(Qt.CustomContextMenu)
         self.labelPanelLayout.addWidget(self.listClasses)
 

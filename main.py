@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
-    QPushButton, QHBoxLayout
+    QPushButton, QHBoxLayout, QTreeWidgetItem
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize
 from PySide6.QtGui import (
@@ -161,6 +161,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.class_list = []
         self.class_colors = {}
         self.class_visibility = {}
+        self.prompt_aliases = {}
+        self.pending_prompt_targets = {}
         self.settings = QSettings("LuoHuaLabel", "LuoHuaLabel")
         self.current_format = self.settings.value("last_format", "yolo", str)
         self.current_theme = self.settings.value("theme", "system", str)
@@ -226,7 +228,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.samPromptBtn.clicked.connect(self.trigger_sam_prompt)
         self.samRefBtn.clicked.connect(self.trigger_reference_search)
-        self.samPromptInput.returnPressed.connect(self.trigger_sam_prompt)
+        self.samPromptInput.lineEdit().returnPressed.connect(self.trigger_sam_prompt)
+        self.samPromptInput.activated.connect(lambda _index: self.trigger_sam_prompt())
 
         self.listFiles.currentItemChanged.connect(self.on_file_selected)
         self.listFiles.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -241,6 +244,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.listClasses.itemChanged.connect(self.on_list_item_changed)
         self.listClasses.currentItemChanged.connect(self.on_class_item_selected)
+        self.listClasses.itemDoubleClicked.connect(self.on_class_tree_item_double_clicked)
         self.listClasses.customContextMenuRequested.connect(self.show_class_context_menu)
         self.annotationToolBox.currentChanged.connect(self.on_annotation_group_changed)
         for widget in self.annotation_list_widgets():
@@ -462,19 +466,56 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.class_list.append(cls_name)
             self.class_colors.setdefault(cls_name, color_for_label(cls_name).name())
             self.class_visibility.setdefault(cls_name, True)
-            item = QListWidgetItem(cls_name)
-            item.setFlags(item.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
-            item.setData(Qt.UserRole, cls_name)
-            item.setCheckState(Qt.Checked if self.is_label_visible(cls_name) else Qt.Unchecked)
+            item = self._create_class_tree_item(cls_name)
+            self.listClasses.addTopLevelItem(item)
+            self._populate_prompt_alias_children(item, cls_name)
+            item.setExpanded(True)
             self._apply_class_item_style(item, cls_name)
-            self.listClasses.addItem(item)
             if not self.active_label:
                 self.set_active_label(cls_name)
 
+    def _create_class_tree_item(self, cls_name):
+        item = QTreeWidgetItem([cls_name])
+        item.setFlags(item.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable)
+        item.setData(0, Qt.UserRole, cls_name)
+        item.setData(0, Qt.UserRole + 1, "class")
+        item.setCheckState(0, Qt.Checked if self.is_label_visible(cls_name) else Qt.Unchecked)
+        return item
+
+    def _create_prompt_tree_item(self, label, prompt):
+        item = QTreeWidgetItem([prompt])
+        item.setFlags(item.flags() | Qt.ItemIsEditable)
+        item.setData(0, Qt.UserRole, prompt)
+        item.setData(0, Qt.UserRole + 1, "prompt")
+        item.setData(0, Qt.UserRole + 2, label)
+        item.setToolTip(0, f"{label} -> {prompt}")
+        return item
+
+    def _populate_prompt_alias_children(self, class_item, cls_name):
+        for prompt in self.prompt_aliases_for_label(cls_name):
+            class_item.addChild(self._create_prompt_tree_item(cls_name, prompt))
+
+    def _find_class_item(self, cls_name):
+        for index in range(self.listClasses.topLevelItemCount()):
+            item = self.listClasses.topLevelItem(index)
+            if item.data(0, Qt.UserRole) == cls_name:
+                return item
+        return None
+
+    def _find_prompt_item(self, cls_name, prompt):
+        class_item = self._find_class_item(cls_name)
+        if class_item is None:
+            return None
+        for index in range(class_item.childCount()):
+            child = class_item.child(index)
+            if child.data(0, Qt.UserRole) == prompt:
+                return child
+        return None
+
     def _apply_class_item_style(self, item, cls_name):
         color = QColor(self.class_colors.get(cls_name, color_for_label(cls_name).name()))
-        item.setIcon(self._make_color_icon(color))
-        item.setToolTip(cls_name)
+        item.setIcon(0, self._make_color_icon(color))
+        item.setToolTip(0, cls_name)
 
     def _apply_shape_label_style(self, shape, label):
         setattr(shape, "custom_color", self.class_colors.get(label, color_for_label(label).name()))
@@ -641,9 +682,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if persist:
             self.settings.setValue("active_label", self.active_label)
         found = False
-        for index in range(self.listClasses.count()):
-            item = self.listClasses.item(index)
-            if item.data(Qt.UserRole) == self.active_label:
+        for index in range(self.listClasses.topLevelItemCount()):
+            item = self.listClasses.topLevelItem(index)
+            if item.data(0, Qt.UserRole) == self.active_label:
                 self.listClasses.blockSignals(True)
                 self.listClasses.setCurrentItem(item)
                 self.listClasses.blockSignals(False)
@@ -654,6 +695,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.listClasses.clearSelection()
             self.listClasses.setCurrentItem(None)
             self.listClasses.blockSignals(False)
+        self.refresh_prompt_combo()
 
     def ensure_active_label(self):
         if self.active_label in self.class_list:
@@ -669,6 +711,68 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.save_classes()
         self.set_active_label(text)
         return text
+
+    def prompt_aliases_for_label(self, label):
+        aliases = []
+        for prompt in self.prompt_aliases.get(label, []):
+            prompt = str(prompt).strip()
+            if prompt and prompt not in aliases:
+                aliases.append(prompt)
+        if not aliases and label:
+            aliases.append(label)
+        return aliases
+
+    def refresh_prompt_combo(self):
+        current_text = self.samPromptInput.currentText().strip()
+        aliases = self.prompt_aliases_for_label(self.active_label)
+        self.samPromptInput.blockSignals(True)
+        try:
+            self.samPromptInput.clear()
+            self.samPromptInput.addItems(aliases)
+            if current_text and current_text in aliases:
+                self.samPromptInput.setEditText(current_text)
+            elif aliases:
+                self.samPromptInput.setEditText(aliases[0])
+            else:
+                self.samPromptInput.setEditText("")
+        finally:
+            self.samPromptInput.blockSignals(False)
+
+    def add_prompt_alias(self, label, prompt):
+        label = (label or "").strip()
+        prompt = (prompt or "").strip()
+        if not label or not prompt:
+            return False
+        aliases = self.prompt_aliases.setdefault(label, [])
+        seeded_default = False
+        if not aliases and prompt != label:
+            aliases.append(label)
+            seeded_default = True
+        if prompt in aliases:
+            return False
+        aliases.append(prompt)
+        class_item = self._find_class_item(label)
+        if class_item is not None:
+            if seeded_default and self._find_prompt_item(label, label) is None:
+                class_item.addChild(self._create_prompt_tree_item(label, label))
+            if self._find_prompt_item(label, prompt) is None:
+                class_item.addChild(self._create_prompt_tree_item(label, prompt))
+            class_item.setExpanded(True)
+        self.save_prompt_aliases()
+        self.refresh_prompt_combo()
+        return True
+
+    def remove_prompt_alias(self, label, prompt):
+        aliases = self.prompt_aliases.get(label, [])
+        if prompt in aliases:
+            aliases.remove(prompt)
+            if not aliases:
+                self.prompt_aliases.pop(label, None)
+            self.save_prompt_aliases()
+        prompt_item = self._find_prompt_item(label, prompt)
+        if prompt_item is not None and prompt_item.parent() is not None:
+            prompt_item.parent().removeChild(prompt_item)
+        self.refresh_prompt_combo()
 
     def prompt_label_selection(self, current_label=""):
         dialog = LabelSelectDialog(self.class_list, current_label=current_label, parent=self)
@@ -976,10 +1080,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             DialogOver(self, "点标注模式下不可使用 SAM 提示词提取", "提示", "warning")
             return
 
-        prompt = self.samPromptInput.text().strip()
+        label = self.ensure_active_label()
+        if not label:
+            DialogOver(self, "请先选择或创建一个标签", "提示", "warning")
+            return
+
+        prompt = self.samPromptInput.currentText().strip()
         if prompt:
+            self.pending_prompt_targets[prompt] = label
             self.samSwitch.setChecked(True)
-            self._set_status(f"正在提取提示词：{prompt}...", "orange")
+            self._set_status(f"正在用提示词“{prompt}”检索，结果将标注为“{label}”...", "orange")
             self.sam_client.request_text_inference(prompt)
 
     def _shape_scene_rect(self, shape):
@@ -1144,34 +1254,39 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._set_status(f"参考查找完成，新增 {added} 个相似目标")
 
     def handle_text_results(self, results, prompt_text):
+        target_label = self.pending_prompt_targets.pop(prompt_text, self.active_label)
+        if target_label not in self.class_list:
+            self._set_status(f"提示词“{prompt_text}”已有结果，但没有可用的目标标签", "red")
+            DialogOver(self, "请先选择或创建一个标签，再使用提示词检索", "提示", "warning")
+            return
+
         if not results:
             self._set_status(f"提取完成：未发现与“{prompt_text}”相关的目标", "red")
             return
 
-        self._set_status(f"提取完成：成功抓取 {len(results)} 个“{prompt_text}”目标", "green")
-
-        if prompt_text not in self.class_list:
-            self.add_class_to_list(prompt_text)
-            self.save_classes()
+        self._set_status(f"提取完成：用提示词“{prompt_text}”找到 {len(results)} 个目标，已标注为“{target_label}”", "green")
+        self.add_prompt_alias(target_label, prompt_text)
 
         for res in results:
             if self.scene.mode == CanvasMode.RECT:
                 x, y, w, h = res["rect"]
-                shape = RectShape(QRectF(x, y, w, h), prompt_text)
+                shape = RectShape(QRectF(x, y, w, h), target_label)
             else:
                 qpts = [QPointF(p[0], p[1]) for p in res["poly_pts"]]
-                shape = PolyShape(QPolygonF(qpts), prompt_text)
+                shape = PolyShape(QPolygonF(qpts), target_label)
 
             self.scene.addItem(shape)
-            self._apply_shape_label_style(shape, prompt_text)
+            self._apply_shape_label_style(shape, target_label)
             if hasattr(shape, 'update_label_text'):
-                shape.update_label_text(prompt_text)
+                shape.update_label_text(target_label)
             if hasattr(shape, 'update_label_position'):
                 shape.update_label_position(shape)
             if hasattr(shape, 'update_label_visibility'):
                 shape.update_label_visibility(shape, is_selected=False, is_hovered=False)
 
+        self.update_annotation_panel()
         self.auto_save_annotation()
+        self.push_state()
 
     def show_help_dialog(self):
         help_text = (
@@ -1222,12 +1337,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.samSwitch.setEnabled(False)
             self.samPromptInput.setEnabled(False)
             self.samPromptBtn.setEnabled(False)
-            self.samPromptInput.setPlaceholderText("点标注模式下不可使用 SAM")
+            self.samPromptInput.lineEdit().setPlaceholderText("点标注模式下不可使用 SAM")
         else:
             self.samSwitch.setEnabled(True)
             self.samPromptInput.setEnabled(True)
             self.samPromptBtn.setEnabled(True)
-            self.samPromptInput.setPlaceholderText("输入提示词提取（如: dog）")
+            self.samPromptInput.lineEdit().setPlaceholderText("输入或选择提示词提取（如: dog）")
 
     def _update_help_text(self, mode):
         is_sam = self.samSwitch.isChecked()
@@ -1250,7 +1365,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.class_list.clear()
         self.class_colors.clear()
         self.class_visibility.clear()
+        self.prompt_aliases.clear()
         self.listClasses.clear()
+        self.load_prompt_aliases(dir_path)
         class_file = os.path.join(dir_path, "classes.txt")
         if os.path.exists(class_file):
             with open(class_file, "r", encoding="utf-8") as f:
@@ -1260,10 +1377,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         self.add_class_to_list(cls_name)
         self.load_class_colors(dir_path)
         self.load_class_visibility(dir_path)
-        for index in range(self.listClasses.count()):
-            item = self.listClasses.item(index)
-            self._apply_class_item_style(item, item.data(Qt.UserRole))
-            item.setCheckState(Qt.Checked if self.is_label_visible(item.data(Qt.UserRole)) else Qt.Unchecked)
+        for index in range(self.listClasses.topLevelItemCount()):
+            item = self.listClasses.topLevelItem(index)
+            cls_name = item.data(0, Qt.UserRole)
+            self._apply_class_item_style(item, cls_name)
+            item.setCheckState(0, Qt.Checked if self.is_label_visible(cls_name) else Qt.Unchecked)
         if self.active_label in self.class_list:
             self.set_active_label(self.active_label, persist=False)
         elif self.class_list:
@@ -1279,6 +1397,47 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     f.write(cls_name + "\n")
             self.save_class_colors()
             self.save_class_visibility()
+            self.save_prompt_aliases()
+
+    def load_prompt_aliases(self, dir_path):
+        aliases_file = os.path.join(dir_path, "prompt_aliases.json")
+        if not os.path.exists(aliases_file):
+            return
+        try:
+            with open(aliases_file, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                cleaned = {}
+                for label, prompts in loaded.items():
+                    label = str(label).strip()
+                    if not label or not isinstance(prompts, list):
+                        continue
+                    seen = []
+                    for prompt in prompts:
+                        prompt = str(prompt).strip()
+                        if prompt and prompt not in seen:
+                            seen.append(prompt)
+                    if seen:
+                        cleaned[label] = seen
+                self.prompt_aliases.update(cleaned)
+        except Exception:
+            pass
+
+    def save_prompt_aliases(self):
+        if not self.current_dir:
+            return
+        aliases_file = os.path.join(self.current_dir, "prompt_aliases.json")
+        cleaned = {}
+        for label in self.class_list:
+            prompts = []
+            for prompt in self.prompt_aliases.get(label, []):
+                prompt = str(prompt).strip()
+                if prompt and prompt not in prompts:
+                    prompts.append(prompt)
+            if prompts:
+                cleaned[label] = prompts
+        with open(aliases_file, "w", encoding="utf-8") as f:
+            json.dump(cleaned, f, ensure_ascii=False, indent=2)
 
     def load_class_colors(self, dir_path):
         color_file = os.path.join(dir_path, "class_colors.json")
@@ -1300,30 +1459,94 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def show_class_context_menu(self, pos):
         item = self.listClasses.itemAt(pos)
-        if not item:
-            return
         menu = QMenu(self)
-        current_action = menu.addAction("设为当前标签")
-        visible = item.checkState() == Qt.Checked
-        toggle_action = menu.addAction("隐藏该标签" if visible else "显示该标签")
-        color_action = menu.addAction("修改颜色")
+        new_class_action = menu.addAction("新增标签")
+        current_action = add_prompt_action = search_prompt_action = rename_prompt_action = delete_prompt_action = None
+        toggle_action = color_action = None
+
+        kind = item.data(0, Qt.UserRole + 1) if item else ""
+        if item is not None:
+            menu.addSeparator()
+            if kind == "class":
+                current_action = menu.addAction("设为当前标签")
+                add_prompt_action = menu.addAction("新增该类提示词")
+                visible = item.checkState(0) == Qt.Checked
+                toggle_action = menu.addAction("隐藏该标签" if visible else "显示该标签")
+                color_action = menu.addAction("修改颜色")
+            elif kind == "prompt":
+                search_prompt_action = menu.addAction("用该提示词检索")
+                rename_prompt_action = menu.addAction("重命名提示词")
+                delete_prompt_action = menu.addAction("删除提示词")
         action = menu.exec(self.listClasses.mapToGlobal(pos))
-        if action == current_action:
-            self.set_active_label(item.data(Qt.UserRole))
+
+        if action == new_class_action:
+            self.create_class_from_input()
+        elif action == current_action:
+            self.set_active_label(item.data(0, Qt.UserRole))
+        elif action == add_prompt_action:
+            self.create_prompt_alias_for_item(item)
         elif action == toggle_action:
-            item.setCheckState(Qt.Unchecked if visible else Qt.Checked)
+            item.setCheckState(0, Qt.Unchecked if item.checkState(0) == Qt.Checked else Qt.Checked)
         elif action == color_action:
             self.change_class_color(item)
+        elif action == search_prompt_action:
+            self.trigger_prompt_item_search(item)
+        elif action == rename_prompt_action:
+            self.listClasses.editItem(item, 0)
+        elif action == delete_prompt_action:
+            self.remove_prompt_alias(item.data(0, Qt.UserRole + 2), item.data(0, Qt.UserRole))
 
     def on_class_item_selected(self, current, previous):
         if current is None:
             return
-        cls_name = current.data(Qt.UserRole)
-        if cls_name:
+        kind = current.data(0, Qt.UserRole + 1)
+        if kind == "prompt":
+            cls_name = current.data(0, Qt.UserRole + 2)
+            prompt = current.data(0, Qt.UserRole)
+            if cls_name in self.class_list:
+                self.active_label = cls_name
+                self.settings.setValue("active_label", self.active_label)
+                self.update_active_label_indicator()
+                self.refresh_prompt_combo()
+                self.samPromptInput.setEditText(prompt)
+        else:
+            cls_name = current.data(0, Qt.UserRole)
             self.set_active_label(cls_name)
 
+    def on_class_tree_item_double_clicked(self, item, column):
+        if item.data(0, Qt.UserRole + 1) == "prompt":
+            self.trigger_prompt_item_search(item)
+
+    def create_class_from_input(self):
+        text, ok = QInputDialog.getText(self, "新建类别", "输入类别名称：")
+        text = text.strip() if ok and text else ""
+        if not text:
+            return
+        if text not in self.class_list:
+            self.add_class_to_list(text)
+            self.save_classes()
+        self.set_active_label(text)
+
+    def create_prompt_alias_for_item(self, item):
+        label = item.data(0, Qt.UserRole)
+        text, ok = QInputDialog.getText(self, "新增提示词", f"为“{label}”输入提示词：")
+        text = text.strip() if ok and text else ""
+        if text:
+            self.add_prompt_alias(label, text)
+
+    def trigger_prompt_item_search(self, item):
+        label = item.data(0, Qt.UserRole + 2)
+        prompt = item.data(0, Qt.UserRole)
+        if label in self.class_list and prompt:
+            self.active_label = label
+            self.settings.setValue("active_label", self.active_label)
+            self.update_active_label_indicator()
+            self.refresh_prompt_combo()
+            self.samPromptInput.setEditText(prompt)
+            self.trigger_sam_prompt()
+
     def change_class_color(self, item):
-        cls_name = item.data(Qt.UserRole)
+        cls_name = item.data(0, Qt.UserRole)
         initial = QColor(self.class_colors.get(cls_name, color_for_label(cls_name).name()))
         color = QColorDialog.getColor(initial, self, f"选择标签颜色 - {cls_name}")
         if not color.isValid():
@@ -1478,12 +1701,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.auto_save_annotation()
         self.push_state()
 
-    def on_list_item_changed(self, item):
-        new_name = item.text().strip()
-        old_name = item.data(Qt.UserRole)
+    def on_list_item_changed(self, item, column=0):
+        kind = item.data(0, Qt.UserRole + 1)
+        if kind == "prompt":
+            self.on_prompt_item_changed(item)
+            return
+
+        new_name = item.text(0).strip()
+        old_name = item.data(0, Qt.UserRole)
 
         if old_name:
-            visible = item.checkState() == Qt.Checked
+            visible = item.checkState(0) == Qt.Checked
             if self.class_visibility.get(old_name, True) != visible:
                 self.class_visibility[old_name] = visible
                 self.save_class_visibility()
@@ -1496,12 +1724,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         try:
             if not new_name:
                 DialogOver(self, "标签名称不能为空", "名称错误", "warning")
-                item.setText(old_name)
+                item.setText(0, old_name)
                 return
 
             if new_name in self.class_list:
                 DialogOver(self, f"标签“{new_name}”已存在", "名称冲突", "warning")
-                item.setText(old_name)
+                item.setText(0, old_name)
                 return
 
             idx = self.class_list.index(old_name)
@@ -1512,7 +1740,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.class_colors[new_name] = self.class_colors.pop(old_name)
             if old_name in self.class_visibility:
                 self.class_visibility[new_name] = self.class_visibility.pop(old_name)
-            item.setData(Qt.UserRole, new_name)
+            if old_name in self.prompt_aliases:
+                self.prompt_aliases[new_name] = self.prompt_aliases.pop(old_name)
+            item.setData(0, Qt.UserRole, new_name)
+            for child_index in range(item.childCount()):
+                child = item.child(child_index)
+                child.setData(0, Qt.UserRole + 2, new_name)
+                child.setToolTip(0, f"{new_name} -> {child.data(0, Qt.UserRole)}")
             self._apply_class_item_style(item, new_name)
 
             changed = False
@@ -1533,6 +1767,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             self.set_active_label(self.active_label or new_name)
             DialogOver(self, f"已将所有“{old_name}”批量改为“{new_name}”", "修改成功", "success")
+        finally:
+            self.listClasses.blockSignals(False)
+
+    def on_prompt_item_changed(self, item):
+        new_prompt = item.text(0).strip()
+        old_prompt = item.data(0, Qt.UserRole)
+        label = item.data(0, Qt.UserRole + 2)
+        if not old_prompt or new_prompt == old_prompt:
+            return
+
+        self.listClasses.blockSignals(True)
+        try:
+            if not new_prompt:
+                DialogOver(self, "提示词不能为空", "名称错误", "warning")
+                item.setText(0, old_prompt)
+                return
+            aliases = self.prompt_aliases.setdefault(label, [])
+            if not aliases:
+                aliases.append(old_prompt)
+            if new_prompt in aliases and new_prompt != old_prompt:
+                DialogOver(self, f"提示词“{new_prompt}”已存在", "名称冲突", "warning")
+                item.setText(0, old_prompt)
+                return
+            if old_prompt in aliases:
+                aliases[aliases.index(old_prompt)] = new_prompt
+            else:
+                aliases.append(new_prompt)
+            item.setData(0, Qt.UserRole, new_prompt)
+            item.setToolTip(0, f"{label} -> {new_prompt}")
+            self.save_prompt_aliases()
+            self.refresh_prompt_combo()
         finally:
             self.listClasses.blockSignals(False)
 
