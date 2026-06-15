@@ -15,16 +15,11 @@ import xml.etree.ElementTree as ET
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QLabel, QLineEdit, QPushButton, QFileDialog, QComboBox,
-                               QTextEdit, QDialog, QSpinBox, QMessageBox, QFrame, QGridLayout,
-                               QGraphicsDropShadowEffect)
+                               QTextEdit, QDialog, QSpinBox, QMessageBox, QFrame, QGridLayout)
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QFont, QIcon, QTextCursor, QColor
+from PySide6.QtGui import QTextCursor
 
 from utils.message import DialogOver
-
-from PySide6.QtWidgets import QProxyStyle, QStyle
-from PySide6.QtGui import QPolygon, QPainter, QColor
-from PySide6.QtCore import QPoint
 
 
 class DatasetWorker(QThread):
@@ -44,11 +39,11 @@ class DatasetWorker(QThread):
 
     def run(self):
         try:
-            self.log(f"🚀 开始任务...")
-            self.log(f"📁 图片目录: {self.img_dir}")
-            self.log(f"📁 标签目录: {self.ann_dir}")
-            self.log(f"📁 输出目录: {self.out_dir}")
-            self.log(f"📊 划分比例: Train({self.train_r}), Val({self.val_r}), Test({self.test_r})")
+            self.log("开始任务...")
+            self.log(f"图片目录: {self.img_dir}")
+            self.log(f"标签目录: {self.ann_dir}")
+            self.log(f"输出目录: {self.out_dir}")
+            self.log(f"划分比例: Train({self.train_r}), Val({self.val_r}), Test({self.test_r})")
             self.log("-" * 50)
 
             if self.mode == "UNET":
@@ -59,7 +54,7 @@ class DatasetWorker(QThread):
                 self.process_convert_to_yolo()
 
         except Exception as e:
-            self.log(f"❌ 错误: {str(e)}")
+            self.log(f"错误: {str(e)}")
             self.finish_signal.emit(False, str(e))
 
     def get_valid_pairs(self, exts, label_exts, use_json_xml_mix=False):
@@ -102,7 +97,7 @@ class DatasetWorker(QThread):
             self.finish_signal.emit(False, "未找到成对的图片和JSON！")
             return
 
-        self.log(f"✅ 找到 {len(valid_pairs)} 组有效数据。")
+        self.log(f"找到 {len(valid_pairs)} 组有效数据。")
         class_mapping = {"background": 0}
         self.log("正在从 JSON 提取类别...")
         unique_classes = set()
@@ -112,7 +107,7 @@ class DatasetWorker(QThread):
                     if s.get('label'): unique_classes.add(s['label'])
         for c in sorted(list(unique_classes)):
             class_mapping[c] = len(class_mapping)
-        self.log(f"🏷️ 类别映射: {class_mapping}")
+        self.log(f"类别映射: {class_mapping}")
 
         train_p, val_p, test_p = self.split_data(valid_pairs)
 
@@ -120,7 +115,7 @@ class DatasetWorker(QThread):
             if not pairs: continue
             os.makedirs(os.path.join(self.out_dir, 'images', split_name), exist_ok=True)
             os.makedirs(os.path.join(self.out_dir, 'masks', split_name), exist_ok=True)
-            self.log(f"📦 正在生成 {split_name} 集 ({len(pairs)} 张)...")
+            self.log(f"正在生成 {split_name} 集 ({len(pairs)} 张)...")
 
             for img_p, json_p in pairs:
                 base_name = os.path.splitext(os.path.basename(img_p))[0]
@@ -143,7 +138,7 @@ class DatasetWorker(QThread):
                 cv2.imencode('.png', mask)[1].tofile(
                     os.path.join(self.out_dir, 'masks', split_name, f"{base_name}.png"))
 
-        self.log("\n🎉 U-Net 格式数据集生成完毕！")
+        self.log("\nU-Net 格式数据集生成完毕！")
         self.finish_signal.emit(True, "U-Net 数据集处理成功")
 
     # ------------------ 生成 data.yaml ------------------
@@ -175,7 +170,7 @@ class DatasetWorker(QThread):
         with open(yaml_path, 'w', encoding='utf-8') as f:
             f.write("\n".join(yaml_content))
 
-        self.log(f"📝 已自动生成配置文件: {yaml_path}")
+        self.log(f"已自动生成配置文件: {yaml_path}")
 
     # ------------------ YOLO 纯划分 ------------------
     def process_yolo_split(self):
@@ -193,20 +188,20 @@ class DatasetWorker(QThread):
         else:
             class_map = {"class_0": 0}
 
-        self.log(f"✅ 找到 {len(valid_pairs)} 组有效数据。")
+        self.log(f"找到 {len(valid_pairs)} 组有效数据。")
         train_p, val_p, test_p = self.split_data(valid_pairs)
 
         for split_name, pairs in [('train', train_p), ('val', val_p), ('test', test_p)]:
             if not pairs: continue
             os.makedirs(os.path.join(self.out_dir, 'images', split_name), exist_ok=True)
             os.makedirs(os.path.join(self.out_dir, 'labels', split_name), exist_ok=True)
-            self.log(f"📦 正在拷贝 {split_name} 集 ({len(pairs)} 张)...")
+            self.log(f"正在拷贝 {split_name} 集 ({len(pairs)} 张)...")
             for img_p, txt_p in pairs:
                 shutil.copy(img_p, os.path.join(self.out_dir, 'images', split_name, os.path.basename(img_p)))
                 shutil.copy(txt_p, os.path.join(self.out_dir, 'labels', split_name, os.path.basename(txt_p)))
 
         self.generate_yaml(class_map)
-        self.log("\n🎉 YOLO 数据集划分完毕！")
+        self.log("\nYOLO 数据集划分完毕！")
         self.finish_signal.emit(True, "YOLO 划分处理成功")
 
     # ------------------ XML/JSON 转 YOLO ------------------
@@ -216,7 +211,7 @@ class DatasetWorker(QThread):
             self.finish_signal.emit(False, "未找到成对的图片和JSON/XML！")
             return
 
-        self.log(f"✅ 找到 {len(valid_pairs)} 组有效数据，正在提取类别...")
+        self.log(f"找到 {len(valid_pairs)} 组有效数据，正在提取类别...")
         class_map = {}
         unique_classes = set()
         for _, l_path, l_type in valid_pairs:
@@ -229,14 +224,14 @@ class DatasetWorker(QThread):
                     if obj.find('name') is not None: unique_classes.add(obj.find('name').text)
         for c in sorted(list(unique_classes)):
             class_map[c] = len(class_map)
-        self.log(f"🏷️ 类别映射: {class_map}")
+        self.log(f"类别映射: {class_map}")
 
         train_p, val_p, test_p = self.split_data(valid_pairs)
         for split_name, pairs in [('train', train_p), ('val', val_p), ('test', test_p)]:
             if not pairs: continue
             os.makedirs(os.path.join(self.out_dir, 'images', split_name), exist_ok=True)
             os.makedirs(os.path.join(self.out_dir, 'labels', split_name), exist_ok=True)
-            self.log(f"📦 处理 {split_name} 集 ({len(pairs)} 张)...")
+            self.log(f"处理 {split_name} 集 ({len(pairs)} 张)...")
 
             for img_p, label_p, l_type in pairs:
                 # 读取图片宽高
@@ -340,7 +335,7 @@ class DatasetWorker(QThread):
             for c in sorted(class_map.keys(), key=lambda k: class_map[k]): f.write(f"{c}\n")
 
         self.generate_yaml(class_map)
-        self.log("\n🎉 JSON/XML 转 YOLO 完成！")
+        self.log("\nJSON/XML 转 YOLO 完成！")
         self.finish_signal.emit(True, "格式转换与划分成功")
 
 
@@ -461,98 +456,25 @@ class DatasetToolWindow(QMainWindow):
         super().__init__()
         self.theme = theme
         self.setWindowTitle("LuoHuaLabel - 数据集处理系统")
-        self.resize(850, 650)
-
-        # 整体应用偏灰色的背景，凸显内部白色卡片
-        self.setStyleSheet("""
-            QMainWindow { background-color: #020617; }
-            QWidget { font-family: "Microsoft YaHei", sans-serif; }
-
-            QLabel { font-size: 13px; color: #e2e8f0; font-weight: bold; }
-
-            /* 表单输入框美化 */
-            QLineEdit { 
-                border: 1px solid #334155; 
-                border-radius: 4px; 
-                padding: 8px 12px; 
-                background: #0f172a; 
-                font-size: 13px; 
-                color: #f8fafc;
-            }
-            QLineEdit:focus { border: 1px solid #22c55e; background: #1e293b; }
-
-            /* 默认按钮美化 */
-            QPushButton#DefaultBtn { 
-                border-radius: 4px; 
-                padding: 8px 15px; 
-                font-weight: bold; 
-                font-size: 13px; 
-                border: 1px solid #334155; 
-                background: #0f172a; 
-                color: #f8fafc; 
-            }
-            QPushButton#DefaultBtn:hover { color: #86efac; border-color: #22c55e; background-color: #1e293b; }
-
-            /* 下拉框美化 */
-            QComboBox { 
-                border: 1px solid #334155; 
-                border-radius: 4px; 
-                padding: 8px 12px; 
-                background: #0f172a; 
-                color: #f8fafc;
-            }
-            QComboBox:hover { border: 1px solid #475569; }
-            QComboBox::drop-down { border: none; width: 30px; }
-            QComboBox QAbstractItemView {
-                border: 1px solid #334155;
-                border-radius: 4px;
-                background-color: #0f172a;
-                color: #f8fafc;
-                selection-background-color: #1e293b;
-                selection-color: #86efac;
-            }
-            
-            /* 控制台终端美化 */
-            QTextEdit { 
-                background-color: #020617; 
-                color: #86efac; 
-                font-family: Consolas, monospace; 
-                border-radius: 6px; 
-                padding: 12px; 
-                font-size: 13px;
-                border: 1px solid #334155;
-            }
-        """)
+        self.resize(820, 600)
 
         self.ratios = (0.8, 0.2, 0.0)
 
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(25, 25, 25, 25)
-        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(10)
 
         # -------------------------------------------------------------
         # 包含配置和表单
         # -------------------------------------------------------------
         self.card_frame = QFrame()
-        self.card_frame.setStyleSheet("""
-            QFrame {
-                background-color: #0f172a;
-                border-radius: 8px;
-                border: 1px solid #334155;
-            }
-        """)
-        # 添加阴影效果
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(15)
-        shadow.setColor(QColor(0, 0, 0, 60))
-        shadow.setOffset(0, 2)
-        self.card_frame.setGraphicsEffect(shadow)
+        self.card_frame.setObjectName("datasetPanel")
 
         card_layout = QVBoxLayout(self.card_frame)
-        card_layout.setContentsMargins(20, 25, 20, 25)
-        card_layout.setSpacing(15)
+        card_layout.setContentsMargins(14, 14, 14, 14)
+        card_layout.setSpacing(10)
 
         grid_layout = QGridLayout()
         grid_layout.setSpacing(12)
@@ -563,7 +485,7 @@ class DatasetToolWindow(QMainWindow):
         btn_img = QPushButton("选择目录")
         btn_img.setObjectName("DefaultBtn")
         btn_img.clicked.connect(lambda: self.select_dir(self.img_input))
-        grid_layout.addWidget(QLabel("🖼️ 图片数据目录:"), 0, 0)
+        grid_layout.addWidget(QLabel("图片数据目录"), 0, 0)
         grid_layout.addWidget(self.img_input, 0, 1)
         grid_layout.addWidget(btn_img, 0, 2)
 
@@ -572,7 +494,7 @@ class DatasetToolWindow(QMainWindow):
         btn_ann = QPushButton("选择目录")
         btn_ann.setObjectName("DefaultBtn")
         btn_ann.clicked.connect(lambda: self.select_dir(self.ann_input))
-        grid_layout.addWidget(QLabel("📑 标签数据目录:"), 1, 0)
+        grid_layout.addWidget(QLabel("标签数据目录"), 1, 0)
         grid_layout.addWidget(self.ann_input, 1, 1)
         grid_layout.addWidget(btn_ann, 1, 2)
 
@@ -581,7 +503,7 @@ class DatasetToolWindow(QMainWindow):
         btn_out = QPushButton("选择目录")
         btn_out.setObjectName("DefaultBtn")
         btn_out.clicked.connect(lambda: self.select_dir(self.out_input))
-        grid_layout.addWidget(QLabel("📦 最终输出目录:"), 2, 0)
+        grid_layout.addWidget(QLabel("最终输出目录"), 2, 0)
         grid_layout.addWidget(self.out_input, 2, 1)
         grid_layout.addWidget(btn_out, 2, 2)
 
@@ -590,12 +512,13 @@ class DatasetToolWindow(QMainWindow):
         # 分割线
         self.divider = QFrame()
         self.divider.setFrameShape(QFrame.HLine)
-        self.divider.setStyleSheet("border-top: 1px solid #334155; margin: 5px 0px;")
+        self.divider.setObjectName("datasetDivider")
         card_layout.addWidget(self.divider)
 
         # 模式与比例配置行
         opt_layout = QHBoxLayout()
-        opt_layout.addWidget(QLabel("⚙️ 处理模式配置:"))
+        opt_layout.setSpacing(10)
+        opt_layout.addWidget(QLabel("处理模式"))
 
         self.mode_combo = QComboBox()
         self.mode_combo.addItems([
@@ -607,7 +530,7 @@ class DatasetToolWindow(QMainWindow):
         opt_layout.addWidget(self.mode_combo)
         opt_layout.addStretch()
 
-        self.ratio_btn = QPushButton("⚖️ 比例: 80% Train | 20% Val")
+        self.ratio_btn = QPushButton("比例: 80% Train | 20% Val")
         self.ratio_btn.setObjectName("DefaultBtn")
         self.ratio_btn.clicked.connect(self.open_ratio_dialog)
         opt_layout.addWidget(self.ratio_btn)
@@ -618,30 +541,17 @@ class DatasetToolWindow(QMainWindow):
         # -------------------------------------------------------------
         # 第二部分：执行按钮
         # -------------------------------------------------------------
-        self.start_btn = QPushButton("🚀 开始执行转换与划分")
+        self.start_btn = QPushButton("开始执行转换与划分")
+        self.start_btn.setObjectName("PrimaryAction")
         self.start_btn.setCursor(Qt.PointingHandCursor)
-        self.start_btn.setStyleSheet("""
-            QPushButton { 
-                background-color: #16a34a; 
-                color: #f8fafc; 
-                font-size: 16px; 
-                font-weight: bold;
-                padding: 12px; 
-                border-radius: 6px; 
-                border: none; 
-            }
-            QPushButton:hover { background-color: #22c55e; color: #020617; }
-            QPushButton:pressed { background-color: #15803d; color: #f8fafc; }
-            QPushButton:disabled { background-color: #334155; color: #94a3b8; }
-        """)
         self.start_btn.clicked.connect(self.start_processing)
         main_layout.addWidget(self.start_btn)
 
         # -------------------------------------------------------------
         # 运行控制台
         # -------------------------------------------------------------
-        console_label = QLabel("🖥️ 处理日志台")
-        console_label.setStyleSheet("color: #94a3b8; font-size: 12px; margin-top: 5px;")
+        console_label = QLabel("处理日志")
+        console_label.setObjectName("datasetSectionTitle")
         self.console_label = console_label
         main_layout.addWidget(self.console_label)
 
@@ -655,32 +565,70 @@ class DatasetToolWindow(QMainWindow):
         self.theme = theme
         if theme == "light":
             self.setStyleSheet("""
-                QMainWindow { background-color: #f8fafc; }
-                QWidget { font-family: "Microsoft YaHei", sans-serif; }
-                QLabel { font-size: 13px; color: #1e293b; font-weight: bold; }
+                QMainWindow { background-color: #eef2f7; }
+                QWidget {
+                    background-color: #eef2f7;
+                    color: #0f172a;
+                    font-family: "Microsoft YaHei UI", "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+                    font-size: 12px;
+                }
+                QFrame#datasetPanel {
+                    background-color: #ffffff;
+                    border: 1px solid #d8dee8;
+                    border-radius: 6px;
+                }
+                QFrame#datasetDivider {
+                    background-color: #d8dee8;
+                    border: 0px;
+                    min-height: 1px;
+                    max-height: 1px;
+                }
+                QLabel {
+                    background: transparent;
+                    color: #334155;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                QLabel#datasetSectionTitle {
+                    color: #64748b;
+                    font-size: 12px;
+                    padding: 2px 0px;
+                }
                 QLineEdit, QComboBox {
                     border: 1px solid #cbd5e1;
-                    border-radius: 4px;
-                    padding: 8px 12px;
+                    border-radius: 6px;
+                    padding: 5px 8px;
                     background: #ffffff;
-                    font-size: 13px;
                     color: #0f172a;
+                    min-height: 24px;
                 }
                 QLineEdit:focus, QComboBox:focus { border: 1px solid #22c55e; }
                 QPushButton#DefaultBtn {
-                    border-radius: 4px;
-                    padding: 8px 15px;
-                    font-weight: bold;
-                    font-size: 13px;
+                    border-radius: 6px;
+                    padding: 5px 10px;
+                    font-weight: 600;
                     border: 1px solid #cbd5e1;
                     background: #ffffff;
                     color: #0f172a;
+                    min-height: 24px;
                 }
                 QPushButton#DefaultBtn:hover { color: #15803d; border-color: #22c55e; background-color: #ecfdf5; }
-                QComboBox::drop-down { border: none; width: 30px; }
+                QPushButton#PrimaryAction {
+                    background-color: #16a34a;
+                    border: 1px solid #16a34a;
+                    border-radius: 6px;
+                    color: #ffffff;
+                    font-size: 13px;
+                    font-weight: 700;
+                    min-height: 30px;
+                    padding: 6px 12px;
+                }
+                QPushButton#PrimaryAction:hover { background-color: #22c55e; color: #052e16; }
+                QPushButton#PrimaryAction:disabled { background-color: #cbd5e1; border-color: #cbd5e1; color: #64748b; }
+                QComboBox::drop-down { border: none; width: 24px; }
                 QComboBox QAbstractItemView {
                     border: 1px solid #cbd5e1;
-                    border-radius: 4px;
+                    border-radius: 5px;
                     background-color: #ffffff;
                     color: #0f172a;
                     selection-background-color: #dcfce7;
@@ -691,56 +639,77 @@ class DatasetToolWindow(QMainWindow):
                     color: #15803d;
                     font-family: Consolas, monospace;
                     border-radius: 6px;
-                    padding: 12px;
-                    font-size: 13px;
+                    padding: 10px;
+                    font-size: 12px;
                     border: 1px solid #cbd5e1;
                 }
             """)
-            self.card_frame.setStyleSheet("QFrame { background-color: #ffffff; border-radius: 8px; border: 1px solid #cbd5e1; }")
-            self.divider.setStyleSheet("border-top: 1px solid #cbd5e1; margin: 5px 0px;")
-            self.console_label.setStyleSheet("color: #64748b; font-size: 12px; margin-top: 5px;")
-            self.start_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #16a34a;
-                    color: #ffffff;
-                    font-size: 16px;
-                    font-weight: bold;
-                    padding: 12px;
-                    border-radius: 6px;
-                    border: none;
-                }
-                QPushButton:hover { background-color: #22c55e; color: #052e16; }
-                QPushButton:pressed { background-color: #15803d; color: #ffffff; }
-                QPushButton:disabled { background-color: #cbd5e1; color: #64748b; }
-            """)
         else:
             self.setStyleSheet("""
-                QMainWindow { background-color: #020617; }
-                QWidget { font-family: "Microsoft YaHei", sans-serif; }
-                QLabel { font-size: 13px; color: #e2e8f0; font-weight: bold; }
+                QMainWindow { background-color: #111827; }
+                QWidget {
+                    background-color: #111827;
+                    color: #e5e7eb;
+                    font-family: "Microsoft YaHei UI", "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+                    font-size: 12px;
+                }
+                QFrame#datasetPanel {
+                    background-color: #162033;
+                    border: 1px solid #2b3648;
+                    border-radius: 6px;
+                }
+                QFrame#datasetDivider {
+                    background-color: #2b3648;
+                    border: 0px;
+                    min-height: 1px;
+                    max-height: 1px;
+                }
+                QLabel {
+                    background: transparent;
+                    color: #cbd5e1;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                QLabel#datasetSectionTitle {
+                    color: #94a3b8;
+                    font-size: 12px;
+                    padding: 2px 0px;
+                }
                 QLineEdit, QComboBox {
                     border: 1px solid #334155;
-                    border-radius: 4px;
-                    padding: 8px 12px;
+                    border-radius: 6px;
+                    padding: 5px 8px;
                     background: #0f172a;
-                    font-size: 13px;
                     color: #f8fafc;
+                    min-height: 24px;
                 }
                 QLineEdit:focus, QComboBox:focus { border: 1px solid #22c55e; background: #1e293b; }
                 QPushButton#DefaultBtn {
-                    border-radius: 4px;
-                    padding: 8px 15px;
-                    font-weight: bold;
-                    font-size: 13px;
+                    border-radius: 6px;
+                    padding: 5px 10px;
+                    font-weight: 600;
                     border: 1px solid #334155;
                     background: #0f172a;
                     color: #f8fafc;
+                    min-height: 24px;
                 }
                 QPushButton#DefaultBtn:hover { color: #86efac; border-color: #22c55e; background-color: #1e293b; }
-                QComboBox::drop-down { border: none; width: 30px; }
+                QPushButton#PrimaryAction {
+                    background-color: #16a34a;
+                    border: 1px solid #22c55e;
+                    border-radius: 6px;
+                    color: #ffffff;
+                    font-size: 13px;
+                    font-weight: 700;
+                    min-height: 30px;
+                    padding: 6px 12px;
+                }
+                QPushButton#PrimaryAction:hover { background-color: #22c55e; color: #052e16; }
+                QPushButton#PrimaryAction:disabled { background-color: #334155; border-color: #334155; color: #94a3b8; }
+                QComboBox::drop-down { border: none; width: 24px; }
                 QComboBox QAbstractItemView {
                     border: 1px solid #334155;
-                    border-radius: 4px;
+                    border-radius: 5px;
                     background-color: #0f172a;
                     color: #f8fafc;
                     selection-background-color: #1e293b;
@@ -751,14 +720,11 @@ class DatasetToolWindow(QMainWindow):
                     color: #86efac;
                     font-family: Consolas, monospace;
                     border-radius: 6px;
-                    padding: 12px;
-                    font-size: 13px;
+                    padding: 10px;
+                    font-size: 12px;
                     border: 1px solid #334155;
                 }
             """)
-            self.card_frame.setStyleSheet("QFrame { background-color: #0f172a; border-radius: 8px; border: 1px solid #334155; }")
-            self.divider.setStyleSheet("border-top: 1px solid #334155; margin: 5px 0px;")
-            self.console_label.setStyleSheet("color: #94a3b8; font-size: 12px; margin-top: 5px;")
 
     def select_dir(self, line_edit):
         d = QFileDialog.getExistingDirectory(self, "选择目录")
@@ -769,7 +735,7 @@ class DatasetToolWindow(QMainWindow):
         if dlg.exec():
             self.ratios = dlg.ratios
             t, v, te = [int(r * 100) for r in self.ratios]
-            txt = f"⚖️ 比例: {t}% Train | {v}% Val"
+            txt = f"比例: {t}% Train | {v}% Val"
             if te > 0:
                 txt += f" | {te}% Test"
             self.ratio_btn.setText(txt)
@@ -798,7 +764,7 @@ class DatasetToolWindow(QMainWindow):
 
         self.console.clear()
         self.start_btn.setEnabled(False)
-        self.start_btn.setText("⏳ 后台处理中，请稍候...")
+        self.start_btn.setText("后台处理中，请稍候...")
 
         self.worker = DatasetWorker(mode_map[mode_idx], img_dir, ann_dir, out_dir, self.ratios)
         self.worker.log_signal.connect(self.append_log)
@@ -807,7 +773,7 @@ class DatasetToolWindow(QMainWindow):
 
     def on_process_finish(self, success, msg):
         self.start_btn.setEnabled(True)
-        self.start_btn.setText("🚀 开始执行转换与划分")
+        self.start_btn.setText("开始执行转换与划分")
         if success:
             self.trigger_message(msg, "处理完成", "success")
         else:

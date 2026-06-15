@@ -208,6 +208,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _connect_signals(self):
         self.actionOpen.triggered.connect(self.open_dir)
+        self.actionSave.triggered.connect(lambda checked=False: self.save_annotation(self.current_format))
 
         self.formatWidget.format_changed.connect(self.set_current_format)
         self.themeWidget.theme_changed.connect(self.apply_theme)
@@ -229,7 +230,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.samPromptBtn.clicked.connect(self.trigger_sam_prompt)
         self.samRefBtn.clicked.connect(self.trigger_reference_search)
         self.samPromptInput.lineEdit().returnPressed.connect(self.trigger_sam_prompt)
-        self.samPromptInput.activated.connect(lambda _index: self.trigger_sam_prompt())
 
         self.listFiles.currentItemChanged.connect(self.on_file_selected)
         self.listFiles.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -360,15 +360,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _update_file_grid_metrics(self):
         panel_width = max(1, self.leftPanel.width() or self.listFiles.width())
-        item_width = max(120, panel_width - 34)
-        icon_width = max(96, item_width - 14)
-        icon_height = max(96, int(icon_width * 0.82))
+        columns = max(1, panel_width // 112)
+        item_width = max(92, (panel_width - 18) // columns)
+        icon_width = max(72, item_width - 14)
+        icon_height = max(56, int(icon_width * 0.72))
         icon_size = QSize(icon_width, icon_height)
         if icon_size == self._file_grid_icon_size:
             return
         self._file_grid_icon_size = icon_size
         self.listFiles.setIconSize(icon_size)
-        self.listFiles.setGridSize(QSize(item_width, icon_height + 42))
+        self.listFiles.setGridSize(QSize(item_width, icon_height + 38))
 
     def _make_color_icon(self, color_value):
         pixmap = QPixmap(12, 12)
@@ -586,19 +587,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _build_dark_palette(self):
         palette = QPalette(self._default_palette)
         role_colors = {
-            QPalette.Window: QColor(2, 6, 23),
-            QPalette.WindowText: QColor(248, 250, 252),
+            QPalette.Window: QColor(17, 24, 39),
+            QPalette.WindowText: QColor(229, 231, 235),
             QPalette.Base: QColor(15, 23, 42),
-            QPalette.AlternateBase: QColor(30, 41, 59),
-            QPalette.ToolTipBase: QColor(17, 24, 39),
+            QPalette.AlternateBase: QColor(22, 32, 51),
+            QPalette.ToolTipBase: QColor(15, 23, 42),
             QPalette.ToolTipText: QColor(248, 250, 252),
             QPalette.Text: QColor(248, 250, 252),
-            QPalette.Button: QColor(15, 23, 42),
+            QPalette.Button: QColor(23, 32, 51),
             QPalette.ButtonText: QColor(248, 250, 252),
             QPalette.BrightText: QColor(255, 85, 85),
-            QPalette.Link: QColor(34, 197, 94),
-            QPalette.Highlight: QColor(34, 197, 94),
-            QPalette.HighlightedText: QColor(2, 6, 23),
+            QPalette.Link: QColor(22, 163, 74),
+            QPalette.Highlight: QColor(22, 163, 74),
+            QPalette.HighlightedText: QColor(255, 255, 255),
             QPalette.PlaceholderText: QColor(148, 163, 184),
         }
         for group in (QPalette.Active, QPalette.Inactive, QPalette.Disabled):
@@ -612,7 +613,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _build_light_palette(self):
         palette = QPalette(self._default_palette)
         role_colors = {
-            QPalette.Window: QColor(248, 250, 252),
+            QPalette.Window: QColor(238, 242, 247),
             QPalette.WindowText: QColor(15, 23, 42),
             QPalette.Base: QColor(255, 255, 255),
             QPalette.AlternateBase: QColor(248, 250, 252),
@@ -671,8 +672,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def update_active_label_indicator(self):
         if self.active_label:
             self.activeLabelIndicator.setText(f"当前标签: {self.active_label}")
+            if hasattr(self, "activeLabelHeader"):
+                self.activeLabelHeader.setText(f"当前标签  {self.active_label}")
         else:
             self.activeLabelIndicator.setText("当前标签: 未选择")
+            if hasattr(self, "activeLabelHeader"):
+                self.activeLabelHeader.setText("当前标签  未选择")
         self.activeLabelIndicator.setStyleSheet("")
 
     def set_active_label(self, label, persist=True):
