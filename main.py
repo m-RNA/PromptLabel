@@ -1462,7 +1462,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         menu = QMenu(self)
         new_class_action = menu.addAction("新增标签")
         current_action = add_prompt_action = search_prompt_action = rename_prompt_action = delete_prompt_action = None
-        toggle_action = color_action = None
+        toggle_action = color_action = delete_class_action = None
 
         kind = item.data(0, Qt.UserRole + 1) if item else ""
         if item is not None:
@@ -1473,6 +1473,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 visible = item.checkState(0) == Qt.Checked
                 toggle_action = menu.addAction("隐藏该标签" if visible else "显示该标签")
                 color_action = menu.addAction("修改颜色")
+                delete_class_action = menu.addAction("删除标签")
             elif kind == "prompt":
                 search_prompt_action = menu.addAction("用该提示词检索")
                 rename_prompt_action = menu.addAction("重命名提示词")
@@ -1489,6 +1490,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             item.setCheckState(0, Qt.Unchecked if item.checkState(0) == Qt.Checked else Qt.Checked)
         elif action == color_action:
             self.change_class_color(item)
+        elif action == delete_class_action:
+            self.delete_class_item(item)
         elif action == search_prompt_action:
             self.trigger_prompt_item_search(item)
         elif action == rename_prompt_action:
@@ -1526,6 +1529,64 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.add_class_to_list(text)
             self.save_classes()
         self.set_active_label(text)
+
+    def delete_class_item(self, item):
+        cls_name = item.data(0, Qt.UserRole)
+        if cls_name not in self.class_list:
+            return
+
+        related_shapes = [
+            shape for shape in self.scene.items()
+            if isinstance(shape, (RectShape, PolyShape, PointShape, RotatedRectShape))
+            and getattr(shape, "label", "") == cls_name
+        ]
+        extra = ""
+        if related_shapes:
+            extra = f"\n当前图片中 {len(related_shapes)} 个“{cls_name}”标注也会一起删除。"
+        if self.current_format == "yolo":
+            extra += "\n注意：删除 YOLO 类会改变后续类别的 class id 顺序。"
+
+        reply = QMessageBox.question(
+            self,
+            "确认删除标签",
+            f"确定删除标签“{cls_name}”吗？{extra}",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        for shape in related_shapes:
+            self.scene.removeItem(shape)
+
+        self.class_list.remove(cls_name)
+        self.class_colors.pop(cls_name, None)
+        self.class_visibility.pop(cls_name, None)
+        self.prompt_aliases.pop(cls_name, None)
+        self.pending_prompt_targets = {
+            prompt: label
+            for prompt, label in self.pending_prompt_targets.items()
+            if label != cls_name
+        }
+
+        parent = item.parent()
+        if parent is None:
+            index = self.listClasses.indexOfTopLevelItem(item)
+            if index >= 0:
+                self.listClasses.takeTopLevelItem(index)
+        else:
+            parent.removeChild(item)
+
+        if self.active_label == cls_name:
+            self.set_active_label(self.class_list[0] if self.class_list else "")
+        else:
+            self.refresh_prompt_combo()
+
+        self.save_classes()
+        self.update_annotation_panel()
+        self.auto_save_annotation()
+        self.push_state()
+        DialogOver(self, f"已删除标签“{cls_name}”", "删除成功", "success")
 
     def create_prompt_alias_for_item(self, item):
         label = item.data(0, Qt.UserRole)
