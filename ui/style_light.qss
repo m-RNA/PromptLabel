@@ -88,7 +88,7 @@ QComboBox#toolbarThemeCombo {
     font-size: 12px;
     font-weight: 600;
     min-height: 24px;
-    padding: 4px 9px;
+    padding: 4px 24px 4px 9px;
 }
 
 QToolButton:hover,
@@ -108,6 +108,15 @@ QToolButton:checked {
 QToolButton::menu-indicator {
     image: none;
     width: 0px;
+}
+
+QPushButton#toolbarSelectButton::menu-indicator {
+    image: url(ui/dropdown_arrow_light.png);
+    subcontrol-origin: padding;
+    subcontrol-position: right center;
+    width: 12px;
+    height: 12px;
+    right: 7px;
 }
 
 QSplitter::handle {
@@ -253,7 +262,7 @@ QComboBox {
     border-radius: 6px;
     color: #0f172a;
     min-height: 24px;
-    padding: 4px 8px;
+    padding: 4px 26px 4px 8px;
 }
 
 QLineEdit:focus,
@@ -270,6 +279,18 @@ QLineEdit::placeholder,
 QTextEdit::placeholder,
 QPlainTextEdit::placeholder {
     color: #94a3b8;
+}
+
+QComboBox::drop-down {
+    background: transparent;
+    border: 0px;
+    width: 22px;
+}
+
+QComboBox::down-arrow {
+    image: url(ui/dropdown_arrow_light.png);
+    width: 12px;
+    height: 12px;
 }
 
 QSpinBox::up-button,
@@ -337,6 +358,18 @@ QLabel:disabled {
 
 QTreeView::branch {
     background: transparent;
+}
+
+QTreeView::branch:has-children:closed {
+    image: url(ui/tree_arrow_right_light.png);
+}
+
+QTreeView::branch:has-children:open {
+    image: url(ui/tree_arrow_down_light.png);
+}
+
+QTreeView::branch:!has-children {
+    image: none;
 }
 
 QMenu {

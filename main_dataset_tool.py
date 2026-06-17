@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QTextCursor
 
-from utils.message import DialogOver
 
 
 class DatasetWorker(QThread):
@@ -597,7 +596,7 @@ class DatasetToolWindow(QMainWindow):
                 QLineEdit, QComboBox {
                     border: 1px solid #cbd5e1;
                     border-radius: 6px;
-                    padding: 5px 8px;
+                    padding: 5px 26px 5px 8px;
                     background: #ffffff;
                     color: #0f172a;
                     min-height: 24px;
@@ -625,6 +624,16 @@ class DatasetToolWindow(QMainWindow):
                 }
                 QPushButton#PrimaryAction:hover { background-color: #22c55e; color: #052e16; }
                 QPushButton#PrimaryAction:disabled { background-color: #cbd5e1; border-color: #cbd5e1; color: #64748b; }
+                QComboBox::drop-down {
+                    background: transparent;
+                    border: 0px;
+                    width: 22px;
+                }
+                QComboBox::down-arrow {
+                    image: url(ui/dropdown_arrow_light.png);
+                    width: 12px;
+                    height: 12px;
+                }
                 QComboBox QAbstractItemView {
                     border: 1px solid #cbd5e1;
                     border-radius: 5px;
@@ -677,7 +686,7 @@ class DatasetToolWindow(QMainWindow):
                 QLineEdit, QComboBox {
                     border: 1px solid #334155;
                     border-radius: 6px;
-                    padding: 5px 8px;
+                    padding: 5px 26px 5px 8px;
                     background: #0f172a;
                     color: #f8fafc;
                     min-height: 24px;
@@ -705,6 +714,16 @@ class DatasetToolWindow(QMainWindow):
                 }
                 QPushButton#PrimaryAction:hover { background-color: #22c55e; color: #052e16; }
                 QPushButton#PrimaryAction:disabled { background-color: #334155; border-color: #334155; color: #94a3b8; }
+                QComboBox::drop-down {
+                    background: transparent;
+                    border: 0px;
+                    width: 22px;
+                }
+                QComboBox::down-arrow {
+                    image: url(ui/dropdown_arrow_dark.png);
+                    width: 12px;
+                    height: 12px;
+                }
                 QComboBox QAbstractItemView {
                     border: 1px solid #334155;
                     border-radius: 5px;
@@ -743,10 +762,8 @@ class DatasetToolWindow(QMainWindow):
         self.console.moveCursor(QTextCursor.End)
 
     def trigger_message(self, text, title, status):
-        if DialogOver:
-            DialogOver(self, text, title, status)
-        else:
-            QMessageBox.information(self, title, text)
+        prefix = title or "提示"
+        self.append_log(f"[{prefix}] {text}")
 
     def start_processing(self):
         img_dir = self.img_input.text().strip()

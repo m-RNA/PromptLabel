@@ -20,7 +20,6 @@ from core.canvas import Canvas, CanvasMode
 from core.sam_client import SAMClient
 from core.exporter import Exporter
 from core.shapes import BaseShape, RectShape, PolyShape, PointShape, RotatedRectShape, color_for_label
-from utils.message import DialogOver
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
@@ -397,7 +396,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def toggle_sam_shortcut(self):
         if self.scene.mode == CanvasMode.POINT:
-            DialogOver(self, "点标注模式下不可使用 SAM 提示词提取", "提示", "warning")
+            self._notify("点标注模式下不可使用 SAM 提示词提取", "warning")
             return
         self.samSwitch.setChecked(not self.samSwitch.isChecked())
 
@@ -614,7 +613,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _set_status(self, text, color=None):
         self.helpLabel.setText(text)
-        self.helpLabel.setStyleSheet("")
+        color_map = {
+            "success": "#16a34a",
+            "info": "#2563eb",
+            "warning": "#d97706",
+            "danger": "#dc2626",
+            "red": "#dc2626",
+            "green": "#16a34a",
+            "orange": "#d97706",
+        }
+        if color in color_map:
+            self.helpLabel.setStyleSheet(f"color: {color_map[color]}; font-weight: 600;")
+        else:
+            self.helpLabel.setStyleSheet("")
+
+    def _notify(self, text, status="info"):
+        self._set_status(text, status)
 
     def _connect_system_theme_signal(self):
         app = QApplication.instance()
@@ -959,7 +973,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if action == copy_action:
             QApplication.clipboard().setText(file_name)
-            DialogOver(self, f"已复制文件名：{file_name}", "复制成功", "success")
+            self._notify(f"已复制文件名：{file_name}", "success")
         elif action == delete_action:
             self.delete_image_item(item)
 
@@ -987,7 +1001,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if os.path.exists(path):
                     os.remove(path)
         except Exception as e:
-            DialogOver(self, f"删除失败: {e}", "操作失败", "danger")
+            self._notify(f"删除失败: {e}", "danger")
             return
 
         current_row = self.listFiles.row(item)
@@ -1001,7 +1015,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.scene.removeItem(self.scene.img_item)
                 self.scene.img_item = None
             self.update_annotation_panel()
-        DialogOver(self, f"已删除图片：{file_name}", "删除成功", "success")
+        self._notify(f"已删除图片：{file_name}", "success")
 
     def update_annotation_panel(self):
         previous_sync_state = self.annotation_item_syncing
@@ -1121,16 +1135,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.dataset_window.activateWindow()
 
         except Exception as e:
-            DialogOver(self, f"启动失败: {e}", "系统错误", "danger")
+            self._notify(f"启动失败: {e}", "danger")
 
     def trigger_sam_prompt(self):
         if self.scene.mode == CanvasMode.POINT:
-            DialogOver(self, "点标注模式下不可使用 SAM 提示词提取", "提示", "warning")
+            self._notify("点标注模式下不可使用 SAM 提示词提取", "warning")
             return
 
         label = self.ensure_active_label()
         if not label:
-            DialogOver(self, "请先选择或创建一个标签", "提示", "warning")
+            self._notify("请先选择或创建一个标签", "warning")
             return
 
         prompt = self.samPromptInput.currentText().strip()
@@ -1168,7 +1182,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         import numpy as np
 
         if not self.current_image_path or not self.scene.img_item:
-            DialogOver(self, "请先打开图片", "提示", "warning")
+            self._notify("请先打开图片", "warning")
             return
 
         selected_shapes = [
@@ -1176,7 +1190,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if isinstance(item, (RectShape, PolyShape, PointShape, RotatedRectShape))
         ]
         if len(selected_shapes) != 1:
-            DialogOver(self, "请先选中一个目标作为参考样本", "提示", "warning")
+            self._notify("请先选中一个目标作为参考样本", "warning")
             return
 
         ref_shape = selected_shapes[0]
@@ -1186,23 +1200,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         x2 = int(ref_rect.right())
         y2 = int(ref_rect.bottom())
         if x2 - x1 < 8 or y2 - y1 < 8:
-            DialogOver(self, "参考目标太小，无法稳定查找", "提示", "warning")
+            self._notify("参考目标太小，无法稳定查找", "warning")
             return
 
         image = cv2.imread(self.current_image_path)
         if image is None:
-            DialogOver(self, "读取当前图片失败", "系统错误", "danger")
+            self._notify("读取当前图片失败", "danger")
             return
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         template = gray[y1:y2, x1:x2]
         if template.size == 0:
-            DialogOver(self, "参考区域无效", "提示", "warning")
+            self._notify("参考区域无效", "warning")
             return
 
         label = self.ensure_active_label()
         if not label:
-            DialogOver(self, "请先选择或创建一个标签", "提示", "warning")
+            self._notify("请先选择或创建一个标签", "warning")
             return
 
         self._set_status("正在按参考目标查找相似目标...")
@@ -1293,7 +1307,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if added == 0:
             self._set_status("未找到足够相似的目标")
-            DialogOver(self, "未找到足够相似的目标，可换一个更标准的参考样本", "提示", "warning")
+            self._notify("未找到足够相似的目标，可换一个更标准的参考样本", "warning")
             return
 
         self.update_annotation_panel()
@@ -1305,7 +1319,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         target_label = self.pending_prompt_targets.pop(prompt_text, self.active_label)
         if target_label not in self.class_list:
             self._set_status(f"提示词“{prompt_text}”已有结果，但没有可用的目标标签", "red")
-            DialogOver(self, "请先选择或创建一个标签，再使用提示词检索", "提示", "warning")
+            self._notify("请先选择或创建一个标签，再使用提示词检索", "warning")
             return
 
         if not results:
@@ -1634,7 +1648,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.update_annotation_panel()
         self.auto_save_annotation()
         self.push_state()
-        DialogOver(self, f"已删除标签“{cls_name}”", "删除成功", "success")
+        self._notify(f"已删除标签“{cls_name}”", "success")
 
     def create_prompt_alias_for_item(self, item):
         label = item.data(0, Qt.UserRole)
@@ -1832,12 +1846,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.listClasses.blockSignals(True)
         try:
             if not new_name:
-                DialogOver(self, "标签名称不能为空", "名称错误", "warning")
+                self._notify("标签名称不能为空", "warning")
                 item.setText(0, old_name)
                 return
 
             if new_name in self.class_list:
-                DialogOver(self, f"标签“{new_name}”已存在", "名称冲突", "warning")
+                self._notify(f"标签“{new_name}”已存在", "warning")
                 item.setText(0, old_name)
                 return
 
@@ -1875,7 +1889,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.push_state()
 
             self.set_active_label(self.active_label or new_name)
-            DialogOver(self, f"已将所有“{old_name}”批量改为“{new_name}”", "修改成功", "success")
+            self._notify(f"已将所有“{old_name}”批量改为“{new_name}”", "success")
         finally:
             self.listClasses.blockSignals(False)
 
@@ -1889,14 +1903,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.listClasses.blockSignals(True)
         try:
             if not new_prompt:
-                DialogOver(self, "提示词不能为空", "名称错误", "warning")
+                self._notify("提示词不能为空", "warning")
                 item.setText(0, old_prompt)
                 return
             aliases = self.prompt_aliases.setdefault(label, [])
             if not aliases:
                 aliases.append(old_prompt)
             if new_prompt in aliases and new_prompt != old_prompt:
-                DialogOver(self, f"提示词“{new_prompt}”已存在", "名称冲突", "warning")
+                self._notify(f"提示词“{new_prompt}”已存在", "warning")
                 item.setText(0, old_prompt)
                 return
             if old_prompt in aliases:
@@ -1986,7 +2000,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.scene.clear_shapes()
             self.load_annotations(self.current_image_path)
             self.update_annotation_panel()
-        DialogOver(self, f"当前读写格式已切换为 {format_type.upper()}", "格式切换", "info")
+        self._notify(f"当前读写格式已切换为 {format_type.upper()}", "info")
 
     def load_annotations(self, image_path):
         if not self.scene.img_item: return
@@ -2112,13 +2126,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def save_annotation(self, format_type):
         if not self.current_image_path or not self.scene.img_item:
-            QMessageBox.warning(self, "提示", "请先打开图片")
-            DialogOver(self, "请先在左侧打开图片", "操作错误", "warning")
+            self._notify("请先在左侧打开图片", "warning")
             return
         shapes_data = Exporter.extract_shapes(self.scene)
-        # if not shapes_data:
-        #     DialogOver(self, "当前画布没有标注内容可保存", "为空提示", "warning")
-        #     return
 
         img_rect = self.scene.img_item.pixmap().rect()
         base_name = os.path.splitext(self.current_image_path)[0]
@@ -2135,10 +2145,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 Exporter.save_xml(out_path, self.current_image_path, img_rect.width(), img_rect.height(), shapes_data)
 
             self.refresh_file_item_status(self.current_image_path)
-            DialogOver(self, "标注文件已保存", "保存成功", "success")
+            self._notify("标注文件已保存", "success")
             print(f"标注文件已保存到: {out_path}")
         except Exception as e:
-            DialogOver(self, f"写入失败: {str(e)}", "保存出错", "danger")
+            self._notify(f"写入失败: {str(e)}", "danger")
 
     def closeEvent(self, event):
         self.auto_save_annotation()
@@ -2198,7 +2208,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     break
         elif key == Qt.Key_Q:
             if self.scene.mode == CanvasMode.POINT:
-                DialogOver(self, "点标注模式下不可使用 SAM 提示词提取", "提示", "warning")
+                self._notify("点标注模式下不可使用 SAM 提示词提取", "warning")
             else:
                 self.samSwitch.setChecked(not self.samSwitch.isChecked())
         elif key == Qt.Key_F1:
