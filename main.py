@@ -11,8 +11,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer
 from PySide6.QtGui import (
     QPolygonF, QColor, QBrush, QPixmap, QIcon, QPalette, QCursor, QPainter, QPen,
-    QShortcut, QKeySequence
+    QShortcut, QKeySequence, QDesktopServices
 )
+from PySide6.QtCore import QUrl
 
 from main_dataset_tool import DatasetToolWindow
 from ui.main_window import Ui_MainWindow
@@ -21,8 +22,12 @@ from core.sam_client import SAMClient
 from core.exporter import Exporter
 from core.shapes import BaseShape, RectShape, PolyShape, PointShape, RotatedRectShape, color_for_label
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
+SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
+SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
+SAM3_BAIDU_URL = "https://pan.baidu.com/s/1B1wqcEgTeTckvOlZyVkm3w"
+SAM3_BAIDU_CODE = "6666"
 
 
 class LabelSelectDialog(QDialog):
@@ -210,7 +215,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._connect_system_theme_signal()
         self.apply_theme(self.current_theme)
         self.update_active_label_indicator()
-        self.sam_client.load_model_async(DEFAULT_SAM3_PATH)
+        self.load_sam_model_or_prompt()
         self.restore_last_session()
 
     def _connect_signals(self):
@@ -629,6 +634,55 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _notify(self, text, status="info"):
         self._set_status(text, status)
+
+    def load_sam_model_or_prompt(self):
+        if os.path.exists(DEFAULT_SAM3_PATH):
+            self.sam_client.load_model_async(DEFAULT_SAM3_PATH)
+            return
+        self.samSwitch.setChecked(False)
+        self.samSwitch.setEnabled(False)
+        self.samPromptInput.setEnabled(False)
+        self.samPromptBtn.setEnabled(False)
+        self.samRefBtn.setEnabled(False)
+        self._set_status("未找到 models/sam3.pt，SAM 智能辅助暂不可用", "warning")
+        QTimer.singleShot(350, self.show_missing_model_dialog)
+
+    def show_missing_model_dialog(self):
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("缺少 SAM3 模型")
+        msg.setText("未找到 models/sam3.pt，SAM 智能辅助暂不可用。")
+        msg.setInformativeText(
+            "手动标注、类别管理和数据集处理仍可使用。\n\n"
+            "请下载 sam3.pt 后放到程序目录下的 models\\sam3.pt。\n"
+            "SAM3 权重受 SAM_LICENSE.txt 约束，下载和分发前请确认遵守 Meta 的 SAM License。"
+        )
+        msg.setDetailedText(
+            f"官方权重：{SAM3_OFFICIAL_URL}\n"
+            f"官方源码：{SAM3_SOURCE_URL}\n"
+            f"备用网盘：{SAM3_BAIDU_URL}\n"
+            f"提取码：{SAM3_BAIDU_CODE}\n"
+            f"目标路径：{DEFAULT_SAM3_PATH}"
+        )
+        official_btn = msg.addButton("打开官方权重", QMessageBox.ActionRole)
+        source_btn = msg.addButton("打开官方源码", QMessageBox.ActionRole)
+        baidu_btn = msg.addButton("打开备用网盘", QMessageBox.ActionRole)
+        copy_btn = msg.addButton("复制网盘信息", QMessageBox.ActionRole)
+        msg.addButton("继续手动标注", QMessageBox.AcceptRole)
+        msg.exec()
+
+        clicked = msg.clickedButton()
+        if clicked == official_btn:
+            QDesktopServices.openUrl(QUrl(SAM3_OFFICIAL_URL))
+        elif clicked == source_btn:
+            QDesktopServices.openUrl(QUrl(SAM3_SOURCE_URL))
+        elif clicked == baidu_btn:
+            QDesktopServices.openUrl(QUrl(SAM3_BAIDU_URL))
+            QApplication.clipboard().setText(SAM3_BAIDU_CODE)
+            self._notify("已打开备用网盘并复制提取码", "info")
+        elif clicked == copy_btn:
+            QApplication.clipboard().setText(f"{SAM3_BAIDU_URL} 提取码: {SAM3_BAIDU_CODE}")
+            self._notify("已复制备用网盘链接和提取码", "info")
 
     def _connect_system_theme_signal(self):
         app = QApplication.instance()
@@ -1355,13 +1409,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "快捷键：\n"
             "A / D：上一张 / 下一张\n"
             "Ctrl + S：保存标注\n"
-            "Ctrl + Z / Ctrl + Y：撤销 / 重做\n"
+            "Ctrl + Z：撤销\n"
+            "Ctrl + Y / Ctrl + Shift + Z：重做\n"
             "1 - 9：切换当前标签\n"
-            "Q：切换 SAM\n"
+            "Q / Space：切换 SAM\n"
             "R / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
             "E：修改当前标注标签\n"
-            "Delete：删除当前标注\n"
+            "Delete / Backspace：删除当前标注\n"
             "F1：打开帮助\n\n"
+            "提示词：\n"
+            "Enter 或“提交”按钮会提交提示词\n"
+            "在提示词下拉框滚动只切换历史提示词，不会提交\n"
+            "多个提示词别名可对应同一个 YOLO 类别\n\n"
             "标签选择：\n"
             "先在右侧选择当前标签，后续新标注直接使用该标签\n"
             "也可在画布上右键切换当前标签\n\n"
@@ -1369,7 +1428,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "先选中一个目标，再点“参考查找”\n"
             "程序会在当前图片中查找相似目标并直接生成同标签标注"
         )
-        QMessageBox.about(self, "LuoHuaLabel 帮助", help_text)
+        QMessageBox.about(self, "PromptLabel 帮助", help_text)
 
     def update_coordinate_label(self, x, y):
         self.coordLabel.setText(f"坐标: X: {x}, Y: {y}")

@@ -8,6 +8,10 @@ assets/_triangle_check_*.png
 
 # 忽略 Python 缓存文件
 __pycache__/
+build/
+dist/
+release/
+*.spec.log
 
 yolotest/
 .venv311/

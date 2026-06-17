@@ -6,12 +6,6 @@ import queue
 from PySide6.QtCore import QObject, QThread, Signal
 from PIL import Image
 
-try:
-    from sam3.model_builder import build_sam3_image_model
-    from sam3.model.sam3_image_processor import Sam3Processor
-except ImportError:
-    pass
-
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
@@ -25,6 +19,9 @@ class ModelLoadWorker(QThread):
 
     def run(self):
         try:
+            from sam3.model_builder import build_sam3_image_model
+            from sam3.model.sam3_image_processor import Sam3Processor
+
             model = build_sam3_image_model(checkpoint_path=self.checkpoint_path, enable_inst_interactivity=True)
             model.to("cuda")
             processor = Sam3Processor(model)
