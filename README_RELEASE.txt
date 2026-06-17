@@ -6,8 +6,8 @@ This is a beta Windows portable package for PromptLabel.
 Before first launch:
 
 1. Download the SAM3 checkpoint file named sam3.pt.
-2. Create a models folder beside PromptLabel.exe if it does not exist.
-3. Put the checkpoint at:
+2. Choose the file from the missing-model dialog, or create a models folder
+   beside PromptLabel.exe and put the checkpoint at:
 
    models\sam3.pt
 
@@ -20,7 +20,7 @@ Official source:
 https://github.com/facebookresearch/sam3
 
 Backup mirror:
-https://pan.baidu.com/s/1B1wqcEgTeTckvOlZyVkm3w
+https://pan.baidu.com/s/11rKzO6W5b_i8aOFcd9xOzA?pwd=6666
 Code: 6666
 
 The SAM3 checkpoint is distributed under Meta's SAM License. See

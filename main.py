@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
-    QPushButton, QHBoxLayout, QTreeWidgetItem, QDialogButtonBox
+    QPushButton, QHBoxLayout, QTreeWidgetItem
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer
 from PySide6.QtGui import (
@@ -28,7 +28,7 @@ BASE_DIR = APP_DIR
 DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
 SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
 SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
-SAM3_BAIDU_URL = "https://pan.baidu.com/s/1B1wqcEgTeTckvOlZyVkm3w"
+SAM3_BAIDU_URL = "https://pan.baidu.com/s/11rKzO6W5b_i8aOFcd9xOzA?pwd=6666"
 SAM3_BAIDU_CODE = "6666"
 
 
@@ -181,6 +181,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._default_palette = QApplication.instance().palette()
         self._last_right_panel_width = 320
         self._file_grid_icon_size = QSize()
+        self.sam_model_available = False
+        self.sam_model_loading = False
 
         self.modeLabel = QLabel("模式: 矩形标注")
         self.statusBar.addWidget(self.modeLabel)
@@ -408,17 +410,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.samSwitch.setChecked(not self.samSwitch.isChecked())
 
     def _update_file_grid_metrics(self):
-        panel_width = max(1, self.leftPanel.width() or self.listFiles.width())
-        columns = max(1, panel_width // 112)
-        item_width = max(92, (panel_width - 18) // columns)
-        icon_width = max(72, item_width - 14)
-        icon_height = max(56, int(icon_width * 0.72))
+        viewport_width = self.listFiles.viewport().width() or self.listFiles.width() or self.leftPanel.width() or 292
+        content_width = max(1, viewport_width - 14)
+        columns = max(1, content_width // 124)
+        item_width = max(104, (content_width - (columns - 1) * 8) // columns)
+        icon_width = max(82, item_width - 16)
+        icon_height = max(60, int(icon_width * 0.72))
         icon_size = QSize(icon_width, icon_height)
         if icon_size == self._file_grid_icon_size:
             return
         self._file_grid_icon_size = icon_size
         self.listFiles.setIconSize(icon_size)
         self.listFiles.setGridSize(QSize(item_width, icon_height + 38))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_file_grid_metrics()
 
     def _make_color_icon(self, color_value):
         pixmap = QPixmap(12, 12)
@@ -638,40 +645,70 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._set_status(text, status)
 
     def load_sam_model_or_prompt(self):
-        if os.path.exists(DEFAULT_SAM3_PATH):
-            self.sam_client.load_model_async(DEFAULT_SAM3_PATH)
+        model_path = self.resolve_sam_model_path()
+        if model_path:
+            self.load_sam_model_path(model_path)
             return
-        self.samSwitch.setChecked(False)
-        self.samSwitch.setEnabled(False)
-        self.samPromptInput.setEnabled(False)
-        self.samPromptBtn.setEnabled(False)
-        self.samRefBtn.setEnabled(False)
+        self.sam_model_available = False
+        self.apply_sam_control_availability()
         self._set_status("未找到 models/sam3.pt，SAM 智能辅助暂不可用", "warning")
         QTimer.singleShot(350, self.show_missing_model_dialog)
+
+    def resolve_sam_model_path(self):
+        if os.path.exists(DEFAULT_SAM3_PATH):
+            return DEFAULT_SAM3_PATH
+        saved_path = self.settings.value("sam3_path", "", str)
+        if saved_path and os.path.exists(saved_path):
+            return saved_path
+        return ""
+
+    def load_sam_model_path(self, model_path):
+        self.sam_model_available = True
+        self.sam_model_loading = True
+        self.apply_sam_control_availability()
+        self.settings.setValue("sam3_path", model_path)
+        self._set_status("正在后台加载 SAM3 模型，请稍候...", "info")
+        self.sam_client.load_model_async(model_path)
+
+    def apply_sam_control_availability(self):
+        enabled = bool(self.sam_model_available and self.scene.mode != CanvasMode.POINT)
+        if not enabled and self.samSwitch.isChecked():
+            self.samSwitch.setChecked(False)
+        self.samSwitch.setEnabled(enabled)
+        self.samPromptInput.setEnabled(enabled)
+        self.samPromptBtn.setEnabled(enabled)
+        self.samRefBtn.setEnabled(enabled)
 
     def show_missing_model_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("缺少 SAM3 模型")
         dialog.setModal(True)
-        dialog.resize(420, 180)
+        dialog.resize(460, 190)
 
         layout = QVBoxLayout(dialog)
         title = QLabel("未找到 models/sam3.pt")
         title.setObjectName("dialogTitle")
         desc = QLabel("SAM 智能辅助暂不可用。手动标注和数据集处理可以继续使用。")
         desc.setWordWrap(True)
-        tip = QLabel("下载 sam3.pt 后放到程序目录的 models 文件夹即可。")
+        tip = QLabel("可以选择已下载的 sam3.pt，也可以前往官网下载；选择后会记住路径，无需手动拷贝。")
         tip.setObjectName("mutedText")
         tip.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(desc)
         layout.addWidget(tip)
 
-        buttons = QDialogButtonBox(dialog)
-        official_btn = buttons.addButton("前往官网下载", QDialogButtonBox.ActionRole)
-        baidu_btn = buttons.addButton("网盘下载", QDialogButtonBox.ActionRole)
-        continue_btn = buttons.addButton("继续", QDialogButtonBox.AcceptRole)
-        layout.addWidget(buttons)
+        button_row = QHBoxLayout()
+        downloaded_btn = QPushButton("我已下载")
+        official_btn = QPushButton("前往官网下载")
+        baidu_btn = QPushButton("网盘下载")
+        continue_btn = QPushButton("继续")
+        continue_btn.setObjectName("DefaultBtn")
+        button_row.addWidget(downloaded_btn)
+        button_row.addStretch()
+        button_row.addWidget(official_btn)
+        button_row.addWidget(baidu_btn)
+        button_row.addWidget(continue_btn)
+        layout.addLayout(button_row)
 
         result = {"action": "continue"}
 
@@ -679,17 +716,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             result["action"] = action
             dialog.accept()
 
+        downloaded_btn.clicked.connect(lambda: choose("local"))
         official_btn.clicked.connect(lambda: choose("official"))
         baidu_btn.clicked.connect(lambda: choose("baidu"))
         continue_btn.clicked.connect(lambda: choose("continue"))
         dialog.exec()
 
-        if result["action"] == "official":
+        if result["action"] == "local":
+            self.select_existing_sam_model()
+        elif result["action"] == "official":
             QDesktopServices.openUrl(QUrl(SAM3_OFFICIAL_URL))
         elif result["action"] == "baidu":
             QDesktopServices.openUrl(QUrl(SAM3_BAIDU_URL))
             QApplication.clipboard().setText(SAM3_BAIDU_CODE)
             self._notify("已打开备用网盘并复制提取码", "info")
+
+    def select_existing_sam_model(self):
+        saved_path = self.settings.value("sam3_path", "", str)
+        start_dir = os.path.dirname(saved_path) if saved_path else BASE_DIR
+        model_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择 sam3.pt",
+            start_dir,
+            "PyTorch checkpoint (*.pt);;All files (*.*)"
+        )
+        if not model_path:
+            return
+        self.load_sam_model_path(model_path)
+        self._set_status(f"正在加载 SAM3 模型: {os.path.basename(model_path)}", "info")
 
     def _connect_system_theme_signal(self):
         app = QApplication.instance()
@@ -1462,14 +1516,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if self.samSwitch.isChecked():
                 self.samSwitch.setChecked(False)
 
-            self.samSwitch.setEnabled(False)
-            self.samPromptInput.setEnabled(False)
-            self.samPromptBtn.setEnabled(False)
+            self.apply_sam_control_availability()
             self.samPromptInput.lineEdit().setPlaceholderText("点标注模式下不可使用 SAM")
         else:
-            self.samSwitch.setEnabled(True)
-            self.samPromptInput.setEnabled(True)
-            self.samPromptBtn.setEnabled(True)
+            self.apply_sam_control_availability()
             self.samPromptInput.lineEdit().setPlaceholderText("输入或选择提示词提取（如: dog）")
 
     def _update_help_text(self, mode):
@@ -2005,6 +2055,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def update_model_status(self, success, msg):
         self._set_status(msg)
+        if success:
+            self.sam_model_loading = False
+            self.sam_model_available = True
+        elif self.sam_model_loading and self.sam_client.load_worker is None:
+            return
+        else:
+            self.sam_model_loading = False
+            self.sam_model_available = False
+        self.apply_sam_control_availability()
         if success and self.current_image_path:
             self._set_status("模型已就绪，正在自动分析当前图片特征...")
             QApplication.processEvents()

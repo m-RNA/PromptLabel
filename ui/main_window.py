@@ -236,6 +236,7 @@ class Ui_MainWindow(object):
 
         self.leftPanel = QWidget()
         self.leftPanel.setObjectName("leftPanel")
+        self.leftPanel.setMinimumWidth(276)
         self.leftLayout = QVBoxLayout(self.leftPanel)
         self.leftLayout.setContentsMargins(10, 10, 8, 10)
         self.leftLayout.setSpacing(8)
@@ -247,6 +248,7 @@ class Ui_MainWindow(object):
         self.leftLayout.addWidget(self.fileHint)
         self.listFiles = QListWidget()
         self.listFiles.setObjectName("fileGrid")
+        self.listFiles.setMinimumWidth(252)
         self.listFiles.setViewMode(QListView.IconMode)
         self.listFiles.setResizeMode(QListView.Adjust)
         self.listFiles.setMovement(QListView.Static)
@@ -346,7 +348,7 @@ class Ui_MainWindow(object):
         self.splitter.addWidget(self.centerPanel)
         self.splitter.addWidget(self.rightPanel)
         self.splitter.setCollapsible(2, True)
-        self.splitter.setSizes([240, 960, 300])
+        self.splitter.setSizes([300, 900, 300])
 
         self.statusBar = QStatusBar()
         MainWindow.setStatusBar(self.statusBar)
