@@ -236,7 +236,7 @@ class Ui_MainWindow(object):
 
         self.leftPanel = QWidget()
         self.leftPanel.setObjectName("leftPanel")
-        self.leftPanel.setMinimumWidth(276)
+        self.leftPanel.setMinimumWidth(148)
         self.leftLayout = QVBoxLayout(self.leftPanel)
         self.leftLayout.setContentsMargins(10, 10, 8, 10)
         self.leftLayout.setSpacing(8)
@@ -248,7 +248,7 @@ class Ui_MainWindow(object):
         self.leftLayout.addWidget(self.fileHint)
         self.listFiles = QListWidget()
         self.listFiles.setObjectName("fileGrid")
-        self.listFiles.setMinimumWidth(252)
+        self.listFiles.setMinimumWidth(124)
         self.listFiles.setViewMode(QListView.IconMode)
         self.listFiles.setResizeMode(QListView.Adjust)
         self.listFiles.setMovement(QListView.Static)

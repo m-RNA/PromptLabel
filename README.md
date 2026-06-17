@@ -90,6 +90,17 @@ python -m venv .venv311
 .\.venv311\Scripts\python main.py
 ```
 
+### 本地打包
+
+仓库已提供 `PromptLabel.spec`。打包前确认 `.venv311` 中已安装依赖和 PyInstaller：
+
+```powershell
+.\.venv311\Scripts\pip install pyinstaller
+.\.venv311\Scripts\pyinstaller.exe --clean --noconfirm PromptLabel.spec
+```
+
+输出目录为 `dist\PromptLabel\`。Release 包不应内置 `models\sam3.pt`、`.sam3_tmp\`、日志、缓存或本地测试图片；用户可在首次启动时选择已有模型文件，或放到 `models\sam3.pt`。
+
 ## 快捷键
 
 | 快捷键 | 功能 |
