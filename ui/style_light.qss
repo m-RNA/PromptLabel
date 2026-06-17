@@ -47,6 +47,18 @@ QLabel#panelHint {
     padding: 0px 2px 4px 2px;
 }
 
+QLabel#dialogTitle {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 700;
+    padding-bottom: 4px;
+}
+
+QLabel#mutedText {
+    color: #64748b;
+    font-size: 11px;
+}
+
 QLabel#rightSectionTitle,
 QLabel#samTitle,
 QLabel#fieldInlineLabel,

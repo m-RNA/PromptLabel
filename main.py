@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
-    QPushButton, QHBoxLayout, QTreeWidgetItem
+    QPushButton, QHBoxLayout, QTreeWidgetItem, QDialogButtonBox
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer
 from PySide6.QtGui import (
@@ -22,7 +22,9 @@ from core.sam_client import SAMClient
 from core.exporter import Exporter
 from core.shapes import BaseShape, RectShape, PolyShape, PointShape, RotatedRectShape, color_for_label
 
-BASE_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
+BASE_DIR = APP_DIR
 DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
 SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
 SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
@@ -648,41 +650,46 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         QTimer.singleShot(350, self.show_missing_model_dialog)
 
     def show_missing_model_dialog(self):
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle("缺少 SAM3 模型")
-        msg.setText("未找到 models/sam3.pt，SAM 智能辅助暂不可用。")
-        msg.setInformativeText(
-            "手动标注、类别管理和数据集处理仍可使用。\n\n"
-            "请下载 sam3.pt 后放到程序目录下的 models\\sam3.pt。\n"
-            "SAM3 权重受 SAM_LICENSE.txt 约束，下载和分发前请确认遵守 Meta 的 SAM License。"
-        )
-        msg.setDetailedText(
-            f"官方权重：{SAM3_OFFICIAL_URL}\n"
-            f"官方源码：{SAM3_SOURCE_URL}\n"
-            f"备用网盘：{SAM3_BAIDU_URL}\n"
-            f"提取码：{SAM3_BAIDU_CODE}\n"
-            f"目标路径：{DEFAULT_SAM3_PATH}"
-        )
-        official_btn = msg.addButton("打开官方权重", QMessageBox.ActionRole)
-        source_btn = msg.addButton("打开官方源码", QMessageBox.ActionRole)
-        baidu_btn = msg.addButton("打开备用网盘", QMessageBox.ActionRole)
-        copy_btn = msg.addButton("复制网盘信息", QMessageBox.ActionRole)
-        msg.addButton("继续手动标注", QMessageBox.AcceptRole)
-        msg.exec()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("缺少 SAM3 模型")
+        dialog.setModal(True)
+        dialog.resize(420, 180)
 
-        clicked = msg.clickedButton()
-        if clicked == official_btn:
+        layout = QVBoxLayout(dialog)
+        title = QLabel("未找到 models/sam3.pt")
+        title.setObjectName("dialogTitle")
+        desc = QLabel("SAM 智能辅助暂不可用。手动标注和数据集处理可以继续使用。")
+        desc.setWordWrap(True)
+        tip = QLabel("下载 sam3.pt 后放到程序目录的 models 文件夹即可。")
+        tip.setObjectName("mutedText")
+        tip.setWordWrap(True)
+        layout.addWidget(title)
+        layout.addWidget(desc)
+        layout.addWidget(tip)
+
+        buttons = QDialogButtonBox(dialog)
+        official_btn = buttons.addButton("前往官网下载", QDialogButtonBox.ActionRole)
+        baidu_btn = buttons.addButton("网盘下载", QDialogButtonBox.ActionRole)
+        continue_btn = buttons.addButton("继续", QDialogButtonBox.AcceptRole)
+        layout.addWidget(buttons)
+
+        result = {"action": "continue"}
+
+        def choose(action):
+            result["action"] = action
+            dialog.accept()
+
+        official_btn.clicked.connect(lambda: choose("official"))
+        baidu_btn.clicked.connect(lambda: choose("baidu"))
+        continue_btn.clicked.connect(lambda: choose("continue"))
+        dialog.exec()
+
+        if result["action"] == "official":
             QDesktopServices.openUrl(QUrl(SAM3_OFFICIAL_URL))
-        elif clicked == source_btn:
-            QDesktopServices.openUrl(QUrl(SAM3_SOURCE_URL))
-        elif clicked == baidu_btn:
+        elif result["action"] == "baidu":
             QDesktopServices.openUrl(QUrl(SAM3_BAIDU_URL))
             QApplication.clipboard().setText(SAM3_BAIDU_CODE)
             self._notify("已打开备用网盘并复制提取码", "info")
-        elif clicked == copy_btn:
-            QApplication.clipboard().setText(f"{SAM3_BAIDU_URL} 提取码: {SAM3_BAIDU_CODE}")
-            self._notify("已复制备用网盘链接和提取码", "info")
 
     def _connect_system_theme_signal(self):
         app = QApplication.instance()
@@ -749,7 +756,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _load_theme_stylesheet(self, resolved_theme):
         filename = "style.qss" if resolved_theme == "dark" else "style_light.qss"
-        qss_path = os.path.join(BASE_DIR, "ui", filename)
+        qss_path = os.path.join(RESOURCE_DIR, "ui", filename)
         try:
             with open(qss_path, "r", encoding="utf-8") as f:
                 return f.read()
