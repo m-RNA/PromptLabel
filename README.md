@@ -1,10 +1,10 @@
-# LuoHuaLabel - 基于 SAM3 的智能图像标注系统
+# PromptLabel - 基于 SAM3 的智能图像标注工作台
 
 
 # 前言
 用AI打败AI，AI全自动开发，效率翻10倍，由于自己的项目需要标注数据集，之前用过 labelme、labelimg工具，于是自己想了想能不能结合 SAM3 自己开发一个智能标注工具，研究了几天中间也发现了好多问题，最终通过 AI 辅助编程，完成一个属于自己的标注工具。**吊打 labelme、labelimg 工具**。
 
- 源码地址：[https://github.com/luohuabuxiema/LuoHuaLabel](https://github.com/luohuabuxiema/LuoHuaLabel/)
+ 项目来源：PromptLabel 基于 [luohuabuxiema/LabelPaw](https://github.com/luohuabuxiema/LabelPaw) 改造，当前版本重点重构了紧凑标注工作台、提示词/SAM 工作流、类别与标注管理、数据集处理界面。
 
 # 系统简介
 
@@ -13,8 +13,8 @@
 
 | <font color = #FF0000>功能 | 界面演示 |
 | -------------------------- | -------- |
-| 紧凑标注工作台             | ![LuoHuaLabel 紧凑标注工作台](assets/readme_main_ui.png) |
-| 数据集处理系统             | ![LuoHuaLabel 数据集处理系统](assets/readme_dataset_tool.png) |
+| 紧凑标注工作台             | ![PromptLabel 紧凑标注工作台](assets/readme_main_ui.png) |
+| 数据集处理系统             | ![PromptLabel 数据集处理系统](assets/readme_dataset_tool.png) |
 
 
 
@@ -205,7 +205,7 @@ self.setRotation(angle_deg + 90)
 
 ## 🚧 存在不足
 
-LuoHuaLabel 虽然核心的标注流、数据清洗以及 SAM3 智能引标注已跑通并验证可行，但受限于个人精力与测试环境，系统仍存在一些不完善之处。
+PromptLabel 虽然核心的标注流、数据清洗以及 SAM3 智能引标注已跑通并验证可行，但受限于个人精力与测试环境，系统仍存在一些不完善之处。
 
 1. **潜在的边缘 Bug**：在极高频的快捷键切换、或极端形变的旋转框（OBB）物理碰撞测试中，偶尔可能出现图层刷新延迟或极小概率的坐标精度溢出问题。
 2. **大尺度图像性能瓶颈**：目前画板基于 PySide6 的 `QGraphicsScene` 构建。在载入超大分辨率图片（如 4K 乃至 8K 无人机遥感图）并叠加成百上千个多边形掩码时，缩放和拖拽的帧率可能会有所下降。
