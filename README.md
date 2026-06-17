@@ -1,73 +1,92 @@
 # PromptLabel
 
-PromptLabel 是基于 [luohuabuxiema/LabelPaw](https://github.com/luohuabuxiema/LabelPaw) 改造的 Windows 图像标注工作台。当前分支的核心目标不是新增标注格式，而是把原工具重构成更紧凑、更清晰、更适合连续标注的生产界面。
+PromptLabel 是基于 [luohuabuxiema/LabelPaw](https://github.com/luohuabuxiema/LabelPaw) 改造的图像标注工作台。这个分支不是原作者官方版本，重点也不是新增一种标注格式，而是按个人习惯修改界面&小功能。
 
-> Beta 说明：当前版本仍处于 beta 阶段，功能已可用，但打包体积、显存占用和少量边界交互仍会继续优化。
+当前版本是 beta。功能可用，但打包体积、模型加载体验和部分边界交互还会继续优化。
 
-## 与上游的主要区别
+## 核心卖点
 
-- 重新设计主界面：左侧图片队列、中央画布、右侧类别/标注管理、底部 SAM 工作流。
-- 重做深色/浅色主题、字体、下拉框/树形控件箭头、状态栏提示和紧凑控件密度。
-- 优化提示词工作流：提示词历史可滚动切换但不会误提交；SAM 控制集中在工作区底部。
-- 类别支持提示词别名：**多个提示词可以对应同一个 YOLO 类别**，导出时仍按类别名写入，不改变训练标签语义。
-- 标注框增加可关闭的呼吸高亮，用于更容易识别当前图片已有标注。
+### 一个类别，多个提示词
 
-## 界面预览
+这是 PromptLabel 最重要的改动。
 
-| 功能 | 截图 |
-| ---- | ---- |
-| 紧凑标注工作台 | ![PromptLabel 紧凑标注工作台](assets/readme_main_ui.png) |
-| 数据集处理工具 | ![PromptLabel 数据集处理工具](assets/readme_dataset_tool.png) |
+原工具里，类别和提示词的关系不够适合“用不同说法找同一类目标”的工作流。PromptLabel 允许一个 YOLO 类别绑定多个提示词别名，例如：
 
-## 功能
+```text
+helmet
+├─ helmet
+├─ hard hat
+└─ safety helmet
+```
 
-- 图片目录打开、缩略图浏览、上一张/下一张、已标注状态提示。
-- 标注格式：`JSON`、`YOLO`、`XML`。
-- 标注模式：矩形、多边形、点、旋转框，快捷键为 `R/P/T/O`。
-- SAM3 辅助：点选提取、提示词分割、参考目标查找。
-- 类别管理：颜色、显示/隐藏、当前类别、提示词别名。
-- 标注管理：按形状类型分组，支持选择、改标签、删除。
-- 数据集处理：划分训练/验证/测试集，JSON/XML 到 YOLO，JSON 到 U-Net Mask。
-- 撤销/重做、保存、删除、坐标状态、主题切换。
+使用 SAM 文本提示时，可以用任意别名去找目标；保存和导出时仍然只写入同一个 YOLO 类别 `helmet`。这样既能保留提示词的灵活性，也不会把训练集类别搞乱。
 
-## Beta 便携包运行
+### 左侧图集预览
 
-1. 在 Release 页面下载 `PromptLabel-v0.1.0-beta.1` 便携包。
-2. 解压所有压缩包到同一个目录。
-3. 下载 SAM3 权重 `sam3.pt`，放到解压目录的 `models/sam3.pt`。
-4. 双击 `PromptLabel.exe` 启动。
+打开目录后，当前目录下的图片会作为“图片队列”显示在左侧：缩略图、文件名、已标注/未标注状态都能直接看到。连续标注时不用反复打开文件选择器，也更容易发现漏标图片。
 
-SAM3 权重不随 release 提供，请优先从官方页面下载：
+### 紧凑标注工作台
+
+界面重新组织为左侧图片队列、中央画布、右侧类别/标注管理、底部 SAM 工作流。相比原界面，PromptLabel 更强调画布空间、信息密度和少打断操作。
+
+![PromptLabel 主界面](assets/readme_main_ui.png)
+
+### 更少打扰的小优化
+
+- 提示词下拉框滚动只切换内容，不会误提交 SAM 提示词。
+- 标注框支持可关闭的呼吸高亮，方便快速识别已有标注。
+- 类别树里直接管理提示词别名、颜色、显示/隐藏状态。
+- 标注列表按矩形、多边形、点、旋转框分组，支持选择、改标签、删除。
+- 减少吐司消息，更多信息放到状态栏，避免遮挡画布。
+- 下拉框和树形控件的小三角样式已统一，深色/浅色主题都可见。
+
+## 功能保留
+
+- 标注格式：`JSON` / `YOLO` / `XML`
+- 标注类型：矩形、多边形、点、旋转框
+- SAM3 辅助：点选、文本提示词、参考查找
+- 类别管理：新增、编辑、删除、颜色、显示/隐藏、提示词别名
+- 图片目录：缩略图队列、上一张/下一张、已标注状态、右键删除图片及标注
+- 常用操作：撤销、重做、删除、保存、坐标显示、当前模式和当前类别提示
+- 数据集处理：划分训练/验证/测试集，JSON/XML 转 YOLO，JSON 转 U-Net Mask
+
+## 模型说明
+
+Release 不内置 `models/sam3.pt`。缺少模型时，主界面仍可打开，手动标注和数据集处理可以继续使用，SAM 智能辅助不可用。启动时也可以点“我已下载”直接选择已有的 `sam3.pt` 文件，程序会记住路径，不要求复制到项目目录。
+
+建议优先从官方来源下载：
 
 - [facebook/sam3 on Hugging Face](https://huggingface.co/facebook/sam3/tree/main)
 - [facebookresearch/sam3](https://github.com/facebookresearch/sam3)
 
 备用下载：
 
-- 百度网盘：[sam3.pt](https://pan.baidu.com/s/1B1wqcEgTeTckvOlZyVkm3w)，提取码：`6666`
+- [百度网盘 sam3.pt](https://pan.baidu.com/s/11rKzO6W5b_i8aOFcd9xOzA?pwd=6666)，提取码：`6666`
 
-SAM3 权重属于 SAM Materials，受 `SAM_LICENSE.txt` 约束。备用镜像仅为方便下载，使用和再分发前请确认遵守 Meta 的 SAM License。
+`sam3.pt` 属于 SAM Materials，受 `SAM_LICENSE.txt` 约束。备用网盘只是为了方便下载，使用和再分发前请确认遵守 Meta 的 SAM License。
 
-缺少 `models/sam3.pt` 时，主界面仍可打开，手动标注和数据集处理可继续使用；SAM 智能辅助会不可用。
+下载后可以在弹窗里直接选择文件，或放到默认路径：
 
-## 源码运行
+```text
+models/sam3.pt
+```
+
+## 运行方式
+
+### Beta 便携包
+
+1. 从 Release 页面下载 `PromptLabel-v0.1.0-beta.1` 便携包。
+2. 解压到同一个目录。
+3. 将 `sam3.pt` 放到 `models/sam3.pt`。
+4. 双击 `PromptLabel.exe` 启动。
+
+### 源码运行
 
 推荐 Windows + Python 3.11 + NVIDIA CUDA 环境。
 
 ```powershell
 python -m venv .venv311
 .\.venv311\Scripts\pip install -r requirements.txt
-```
-
-下载 `sam3.pt` 后放入：
-
-```text
-models/sam3.pt
-```
-
-启动：
-
-```powershell
 .\.venv311\Scripts\python main.py
 ```
 
@@ -86,13 +105,6 @@ models/sam3.pt
 | `1` - `9` | 切换当前类别 |
 | `E` | 修改选中标注标签 |
 | `F1` | 打开帮助 |
-
-## 说明
-
-- PromptLabel 是独立改造版本，不是 LabelPaw 官方版本。
-- YOLO 类别以类别名为准；提示词别名只影响 SAM 文本检索和工作流，不会新增导出类别。
-- Release 不包含大模型权重，避免仓库和发布包过大。
-- 当前 beta 包面向 Windows CUDA 环境；低显存设备可能无法稳定使用 SAM3。
 
 ## License
 
