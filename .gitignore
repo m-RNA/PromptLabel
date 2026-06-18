@@ -16,4 +16,5 @@ release/
 yolotest/
 .venv311/
 *.log
+PromptLabel.ini
 models/

@@ -25,6 +25,7 @@ from core.shapes import BaseShape, RectShape, PolyShape, PointShape, RotatedRect
 APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
 RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
 BASE_DIR = APP_DIR
+SETTINGS_PATH = os.path.join(BASE_DIR, "PromptLabel.ini")
 DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
 SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
 SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
@@ -170,7 +171,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.class_visibility = {}
         self.prompt_aliases = {}
         self.pending_prompt_targets = {}
-        self.settings = QSettings("LuoHuaLabel", "LuoHuaLabel")
+        self.settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
         self.current_format = self.settings.value("last_format", "yolo", str)
         self.current_theme = self.settings.value("theme", "system", str)
         self.breathing_highlight_enabled = self._settings_bool("breathing_highlight", True)
