@@ -85,6 +85,12 @@ QToolBar#topCommandBar {
     spacing: 6px;
 }
 
+QToolBar#topCommandBar::separator {
+    background-color: #cbd5e1;
+    width: 1px;
+    margin: 4px 4px;
+}
+
 QWidget#toolbarField {
     background: transparent;
 }
@@ -100,6 +106,12 @@ QComboBox#toolbarThemeCombo {
     font-size: 12px;
     font-weight: 600;
     min-height: 24px;
+    padding: 4px 12px;
+    text-align: center;
+}
+
+QPushButton#toolbarSelectButton,
+QComboBox#toolbarThemeCombo {
     padding: 4px 24px 4px 9px;
 }
 

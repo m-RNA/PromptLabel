@@ -224,6 +224,7 @@ class Ui_MainWindow(object):
         self.toolBar.addWidget(self.themeWidget)
         self.toolBar.addSeparator()
         self.toolBar.addAction(self.actionToggleRightPanel)
+        self.toolBar.addSeparator()
         self.btnDatasetTool = QPushButton("数据集处理")
         self.btnDatasetTool.setObjectName("toolbarCommandButton")
         self.toolBar.addWidget(self.btnDatasetTool)
