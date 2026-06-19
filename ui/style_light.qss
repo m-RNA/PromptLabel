@@ -166,7 +166,6 @@ QListWidget,
 QListView,
 QTreeView,
 QTableView,
-QToolBox,
 QTabWidget::pane {
     background-color: #ffffff;
     border: 1px solid #d8dee8;
@@ -253,14 +252,14 @@ QTabBar::tab:selected {
     color: #166534;
 }
 
-QToolBox {
+QWidget#annotationDrawer {
     background-color: #ffffff;
     border: 1px solid #d8dee8;
     border-radius: 6px;
     padding: 4px;
 }
 
-QToolBox::tab {
+QToolButton#annotationDrawerHeader {
     background-color: #ffffff;
     border: 1px solid #d8dee8;
     border-radius: 4px;
@@ -272,7 +271,7 @@ QToolBox::tab {
     padding: 0px 10px;
 }
 
-QToolBox::tab:selected {
+QToolButton#annotationDrawerHeader:checked {
     background-color: #dcfce7;
     border-color: #22c55e;
     color: #166534;

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
     QGraphicsView, QLabel, QLineEdit, QPushButton, QStatusBar, QMenu,
-    QSplitter, QListView, QToolBox, QComboBox, QAbstractItemView, QTreeWidget,
+    QSplitter, QListView, QToolButton, QComboBox, QAbstractItemView, QTreeWidget,
     QTabWidget
 )
 from PySide6.QtCore import Qt, Signal, QSize
@@ -108,6 +108,67 @@ class SwitchControl(QWidget):
         painter.setBrush(knob)
         x = self.width() - 24 if self._checked else 2
         painter.drawEllipse(x, 2, 22, 22)
+
+
+class AnnotationDrawer(QWidget):
+    currentChanged = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("annotationDrawer")
+        self._entries = []
+        self._current_index = -1
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addStretch(1)
+        self._layout = layout
+
+    def addItem(self, widget, title):
+        index = len(self._entries)
+        button = QToolButton()
+        button.setObjectName("annotationDrawerHeader")
+        button.setText(title)
+        button.setCheckable(True)
+        button.setChecked(index == 0)
+        button.setArrowType(Qt.DownArrow if index == 0 else Qt.RightArrow)
+        button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        button.toggled.connect(lambda checked, idx=index: self._set_item_expanded(idx, checked, emit=True))
+        widget.setVisible(index == 0)
+
+        self._layout.insertWidget(self._layout.count() - 1, button)
+        self._layout.insertWidget(self._layout.count() - 1, widget)
+        self._entries.append({"button": button, "widget": widget})
+        if index == 0:
+            self._current_index = 0
+        return index
+
+    def setItemText(self, index, text):
+        if 0 <= index < len(self._entries):
+            self._entries[index]["button"].setText(text)
+
+    def setCurrentIndex(self, index):
+        if 0 <= index < len(self._entries):
+            self._set_item_expanded(index, True, emit=True)
+
+    def currentIndex(self):
+        return self._current_index
+
+    def _set_item_expanded(self, index, expanded, emit=False):
+        if not 0 <= index < len(self._entries):
+            return
+        entry = self._entries[index]
+        button = entry["button"]
+        if button.isChecked() != expanded:
+            button.blockSignals(True)
+            button.setChecked(expanded)
+            button.blockSignals(False)
+        button.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        entry["widget"].setVisible(expanded)
+        if expanded:
+            self._current_index = index
+            if emit:
+                self.currentChanged.emit(index)
 
 
 class CanvasView(QGraphicsView):
@@ -243,10 +304,7 @@ class Ui_MainWindow(object):
         self.leftLayout.setSpacing(8)
         self.fileTitle = QLabel("图片队列")
         self.fileTitle.setObjectName("panelTitle")
-        self.fileHint = QLabel("打开目录后显示图片")
-        self.fileHint.setObjectName("panelHint")
         self.leftLayout.addWidget(self.fileTitle)
-        self.leftLayout.addWidget(self.fileHint)
         self.listFiles = QListWidget()
         self.listFiles.setObjectName("fileGrid")
         self.listFiles.setMinimumWidth(124)
@@ -304,8 +362,6 @@ class Ui_MainWindow(object):
         self.activeLabelHeader.setObjectName("activeLabelHeader")
         self.labelTitle = QLabel("标签")
         self.labelTitle.setObjectName("rightSectionTitle")
-        self.annotationListTitle = QLabel("标注列表")
-        self.annotationListTitle.setObjectName("rightSectionTitle")
 
         self.rightLayout.addWidget(self.annotationTitle)
         self.rightLayout.addWidget(self.activeLabelHeader)
@@ -324,8 +380,7 @@ class Ui_MainWindow(object):
         self.annotationPanelLayout = QVBoxLayout(self.annotationPanel)
         self.annotationPanelLayout.setContentsMargins(0, 0, 0, 0)
         self.annotationPanelLayout.setSpacing(6)
-        self.annotationPanelLayout.addWidget(self.annotationListTitle)
-        self.annotationToolBox = QToolBox()
+        self.annotationToolBox = AnnotationDrawer()
         self.annotationToolBox.setObjectName("annotationToolBox")
         self.rectStatsList = QListWidget()
         self.polyStatsList = QListWidget()

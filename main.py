@@ -421,7 +421,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if focused_widget is widget and item.isSelected():
                     current_index = index
                     break
-        next_index = (current_index + step) % len(nav_items)
+        if current_index < 0:
+            next_index = 0 if step > 0 else len(nav_items) - 1
+        else:
+            next_index = current_index + step
+            if not 0 <= next_index < len(nav_items):
+                return
         shape, widget, item, toolbox_index = nav_items[next_index]
         self.annotation_item_syncing = True
         try:
