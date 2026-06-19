@@ -331,8 +331,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _update_panel_toggle_actions(self):
         sizes = self.splitter.sizes()
-        left_visible = self.leftPanel.isVisible() and (len(sizes) < 3 or sizes[0] > 0)
-        right_visible = self.rightPanel.isVisible() and (len(sizes) < 3 or sizes[2] > 0)
+        if len(sizes) >= 3:
+            left_visible = sizes[0] > 0
+            right_visible = sizes[2] > 0
+        else:
+            left_visible = not self.leftPanel.isHidden()
+            right_visible = not self.rightPanel.isHidden()
         self.actionToggleLeftPanel.blockSignals(True)
         self.actionToggleRightPanel.blockSignals(True)
         self.actionToggleLeftPanel.setChecked(left_visible)
