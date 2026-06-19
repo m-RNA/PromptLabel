@@ -713,7 +713,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 empty_item = QListWidgetItem("暂无")
                 empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsSelectable)
                 widget.addItem(empty_item)
-                return
+                return 0
 
             for index, shape in enumerate(visible_shapes, 1):
                 label = getattr(shape, "label", "").strip() or "未命名"
@@ -724,6 +724,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item.setToolTip(label)
                 widget.addItem(item)
                 self.shape_to_item[id(shape)] = (widget, item)
+            return len(visible_shapes)
         finally:
             widget.blockSignals(False)
 
@@ -1253,13 +1254,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             current_group_has_items = False
             current_index = self.annotationToolBox.currentIndex()
             for key, (widget, toolbox_index, _mode, title) in self._annotation_group_config().items():
-                visible_count = sum(
-                    1 for shape in grouped_shapes[key]
-                    if self.is_label_visible(getattr(shape, "label", "").strip())
-                )
-                self.annotationToolBox.setItemText(toolbox_index, f"{title} ({visible_count})")
-                self._render_annotation_group(widget, grouped_shapes[key])
-                if visible_count > 0:
+                rendered_count = self._render_annotation_group(widget, grouped_shapes[key])
+                self.annotationToolBox.setItemText(toolbox_index, f"{title} ({rendered_count})")
+                if rendered_count > 0:
                     if first_non_empty_index is None:
                         first_non_empty_index = toolbox_index
                     if toolbox_index == current_index:

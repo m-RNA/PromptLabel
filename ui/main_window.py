@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
     QGraphicsView, QLabel, QLineEdit, QPushButton, QStatusBar, QMenu,
     QSplitter, QListView, QComboBox, QAbstractItemView, QTreeWidget,
-    QTabWidget
+    QTabWidget, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QAction, QActionGroup, QPainter, QColor
@@ -328,11 +328,13 @@ class Ui_MainWindow(object):
         for widget in (self.rectStatsList, self.polyStatsList, self.pointStatsList, self.rboxStatsList):
             widget.setObjectName("annotationTypeList")
             widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.annotationToolBox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.rectStatsIndex = self.annotationToolBox.addTab(self.rectStatsList, "矩形")
         self.polyStatsIndex = self.annotationToolBox.addTab(self.polyStatsList, "多边形")
         self.pointStatsIndex = self.annotationToolBox.addTab(self.pointStatsList, "点")
         self.rboxStatsIndex = self.annotationToolBox.addTab(self.rboxStatsList, "旋转框")
-        self.annotationPanelLayout.addWidget(self.annotationToolBox)
+        self.annotationPanelLayout.addWidget(self.annotationToolBox, 1)
 
         self.rightTabs = QTabWidget()
         self.rightTabs.setObjectName("rightTabs")
