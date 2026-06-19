@@ -164,7 +164,7 @@ class CanvasView(QGraphicsView):
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("LuoHuaLabel")
+        MainWindow.setWindowTitle("PromptLabel")
         MainWindow.resize(1500, 900)
 
         self.centralWidget = QWidget(MainWindow)

@@ -454,7 +454,7 @@ class DatasetToolWindow(QMainWindow):
     def __init__(self, theme="dark"):
         super().__init__()
         self.theme = theme
-        self.setWindowTitle("LuoHuaLabel - 数据集处理系统")
+        self.setWindowTitle("PromptLabel - 数据集处理系统")
         self.resize(820, 600)
 
         self.ratios = (0.8, 0.2, 0.0)
