@@ -252,6 +252,28 @@ QTabBar::tab:selected {
     color: #166534;
 }
 
+QTabBar::scroller {
+    width: 28px;
+}
+
+QTabBar QToolButton {
+    background-color: #f8fafc;
+    border: 1px solid #d8dee8;
+    border-radius: 4px;
+    margin: 1px;
+}
+
+QTabBar QToolButton:hover {
+    background-color: #eef2f7;
+    border-color: #cbd5e1;
+}
+
+QTabBar QToolButton::right-arrow {
+    image: url(ui/tree_arrow_right_light.png);
+    width: 8px;
+    height: 8px;
+}
+
 QTabWidget#annotationTypeTabs::pane {
     background-color: #ffffff;
     border: 1px solid #d8dee8;
