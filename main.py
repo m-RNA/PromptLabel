@@ -357,6 +357,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("S", lambda: self.select_adjacent_annotation(1), False),
             ("Delete", self.delete_selected_shapes, False),
             ("Backspace", self.delete_selected_shapes, False),
+            ("0", self.delete_selected_shapes, False),
             ("E", self.edit_selected_shape_label, False),
             ("F1", self.show_help_dialog, True),
             ("R", lambda: self._set_mode(CanvasMode.RECT), False),
@@ -1659,7 +1660,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         def result_sort_key(res):
             x, y, w, h = res.get("rect", [0, 0, 0, 0])
-            return (float(y), float(x))
+            return (float(x), float(y))
 
         for res in sorted(results, key=result_sort_key):
             if self.scene.mode == CanvasMode.RECT:
@@ -1690,6 +1691,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "Ctrl + Z：撤销\n"
             "Ctrl + Y / Ctrl + Shift + Z：重做\n"
             "1 - 9：切换当前标签\n"
+            "0：删除当前标注\n"
             "Q / Space：切换 SAM\n"
             "R / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
             "E：修改当前标注标签\n"
