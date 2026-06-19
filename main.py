@@ -129,8 +129,7 @@ class LabelEditDialog(QDialog):
 
         self.ok_button.clicked.connect(self.accept_selection)
         self.cancel_button.clicked.connect(self.reject)
-        self.combo.activated.connect(lambda _index: self.ok_button.setFocus())
-        self.ok_button.setFocus()
+        self.combo.setFocus(Qt.OtherFocusReason)
 
     def accept_selection(self):
         self.selected_label = self.combo.currentText().strip()
@@ -142,6 +141,7 @@ class LabelEditDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self.combo.setFocus(Qt.OtherFocusReason)
         self._move_near_cursor()
 
     def _move_near_cursor(self):
@@ -180,6 +180,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.annotation_item_syncing = False
         self.shape_to_item = {}
         self._default_palette = QApplication.instance().palette()
+        self._last_left_panel_width = 300
         self._last_right_panel_width = 320
         self._file_grid_icon_size = QSize()
         self._file_grid_item_size = QSize()
@@ -214,6 +215,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._breathing_timer.timeout.connect(self._tick_breathing_highlight)
 
         self._connect_signals()
+        self._update_window_title()
         self._update_file_grid_metrics()
         QTimer.singleShot(0, self._update_file_grid_metrics)
         self._setup_shortcuts()
@@ -222,6 +224,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.themeWidget.set_theme(self.current_theme)
         self.actionBreathingHighlight.setChecked(self.breathing_highlight_enabled)
         self.set_breathing_highlight_enabled(self.breathing_highlight_enabled, persist=False)
+        self._update_panel_toggle_actions()
+        self._update_sam_switch_text()
         self._set_mode(CanvasMode.RECT)
         self._connect_system_theme_signal()
         self.apply_theme(self.current_theme)
@@ -247,19 +251,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionPoly.triggered.connect(lambda checked=False: self._set_mode(CanvasMode.POLY))
         self.actionPoint.triggered.connect(lambda checked=False: self._set_mode(CanvasMode.POINT))
         self.actionRBox.triggered.connect(lambda checked=False: self._set_mode(CanvasMode.RBOX))
+        self.actionToggleLeftPanel.toggled.connect(self.set_left_panel_visible)
         self.actionToggleRightPanel.toggled.connect(self.set_right_panel_visible)
 
         self.samSwitch.toggled.connect(self.on_sam_toggled)
 
         self.samPromptBtn.clicked.connect(self.trigger_sam_prompt)
         self.samRefBtn.clicked.connect(self.trigger_reference_search)
-        self.samLabelCombo.activated.connect(lambda _index: self.on_sam_label_combo_activated())
+        self.samLabelCombo.currentIndexChanged.connect(self.on_sam_label_combo_changed)
         self.samPromptInput.lineEdit().returnPressed.connect(self.trigger_sam_prompt)
 
         self.listFiles.currentItemChanged.connect(self.on_file_selected)
         self.listFiles.setContextMenuPolicy(Qt.CustomContextMenu)
         self.listFiles.customContextMenuRequested.connect(self.show_file_list_context_menu)
-        self.splitter.splitterMoved.connect(lambda _pos, _index: self._update_file_grid_metrics())
+        self.splitter.splitterMoved.connect(lambda _pos, _index: self._on_splitter_moved())
         self.view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self.show_canvas_label_menu)
         self.scene.mouse_moved.connect(self.update_coordinate_label)
@@ -309,6 +314,47 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._refresh_breathing_highlight()
         if persist:
             self.settings.setValue("breathing_highlight", self.breathing_highlight_enabled)
+        self._update_breathing_action_text()
+
+    def _update_window_title(self):
+        if self.current_image_path:
+            self.setWindowTitle(f"PromptLabel - {self.current_image_path}")
+        else:
+            self.setWindowTitle("PromptLabel")
+
+    def _update_breathing_action_text(self):
+        if self.breathing_highlight_enabled:
+            self.actionBreathingHighlight.setText("关闭呼吸高亮")
+            self.actionBreathingHighlight.setToolTip("关闭当前标签的呼吸高亮")
+        else:
+            self.actionBreathingHighlight.setText("打开呼吸高亮")
+            self.actionBreathingHighlight.setToolTip("打开当前标签的呼吸高亮")
+
+    def _update_panel_toggle_actions(self):
+        sizes = self.splitter.sizes()
+        left_visible = self.leftPanel.isVisible() and (len(sizes) < 3 or sizes[0] > 0)
+        right_visible = self.rightPanel.isVisible() and (len(sizes) < 3 or sizes[2] > 0)
+        self.actionToggleLeftPanel.blockSignals(True)
+        self.actionToggleRightPanel.blockSignals(True)
+        self.actionToggleLeftPanel.setChecked(left_visible)
+        self.actionToggleRightPanel.setChecked(right_visible)
+        self.actionToggleLeftPanel.blockSignals(False)
+        self.actionToggleRightPanel.blockSignals(False)
+        self.actionToggleLeftPanel.setText("隐藏左侧面板" if left_visible else "显示左侧面板")
+        self.actionToggleLeftPanel.setToolTip("隐藏左侧图片队列" if left_visible else "显示左侧图片队列")
+        self.actionToggleRightPanel.setText("隐藏右侧面板" if right_visible else "显示右侧面板")
+        self.actionToggleRightPanel.setToolTip("隐藏右侧管理面板" if right_visible else "显示右侧管理面板")
+
+    def _update_sam_switch_text(self):
+        if not self.samSwitch.isEnabled():
+            self.samSwitch.setText("SAM 不可用")
+            self.samSwitch.setToolTip("SAM3 模型不可用或当前模式不支持 SAM")
+        elif self.samSwitch.isChecked():
+            self.samSwitch.setText("关闭 SAM")
+            self.samSwitch.setToolTip("关闭 SAM 智能辅助")
+        else:
+            self.samSwitch.setText("打开 SAM")
+            self.samSwitch.setToolTip("打开 SAM 智能辅助")
 
     def _tick_breathing_highlight(self):
         self._breathing_cycle_elapsed = (
@@ -503,21 +549,54 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             current_widget.blockSignals(False)
             self.annotation_item_syncing = previous_sync_state
 
+    def _on_splitter_moved(self):
+        self._update_file_grid_metrics()
+        sizes = self.splitter.sizes()
+        if len(sizes) >= 3:
+            if sizes[0] > 0:
+                self._last_left_panel_width = sizes[0]
+            if sizes[2] > 0:
+                self._last_right_panel_width = sizes[2]
+        self._update_panel_toggle_actions()
+
+    def set_left_panel_visible(self, visible):
+        sizes = self.splitter.sizes()
+        if len(sizes) < 3:
+            self.leftPanel.setVisible(visible)
+            self._update_panel_toggle_actions()
+            return
+        if visible:
+            left_width = self._last_left_panel_width or 300
+            remaining = max(1, sizes[1] - left_width)
+            self.leftPanel.setVisible(True)
+            self.splitter.setSizes([left_width, remaining, sizes[2]])
+            self._update_file_grid_metrics()
+            self._update_panel_toggle_actions()
+            return
+        if sizes[0] > 0:
+            self._last_left_panel_width = sizes[0]
+        self.splitter.setSizes([0, sizes[0] + sizes[1], sizes[2]])
+        self.leftPanel.setVisible(False)
+        self._update_panel_toggle_actions()
+
     def set_right_panel_visible(self, visible):
         sizes = self.splitter.sizes()
         if len(sizes) < 3:
             self.rightPanel.setVisible(visible)
+            self._update_panel_toggle_actions()
             return
         if visible:
             right_width = self._last_right_panel_width or 320
             remaining = max(1, sizes[1] - right_width)
             self.rightPanel.setVisible(True)
             self.splitter.setSizes([sizes[0], remaining, right_width])
+            self._update_panel_toggle_actions()
             return
         if sizes[2] > 0:
             self._last_right_panel_width = sizes[2]
         self.splitter.setSizes([sizes[0], sizes[1] + sizes[2], 0])
         self.rightPanel.setVisible(False)
+        self._update_panel_toggle_actions()
 
     def delete_selected_shapes(self):
         selected_items = [
@@ -820,6 +899,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.samPromptInput.setEnabled(enabled)
         self.samPromptBtn.setEnabled(enabled)
         self.samRefBtn.setEnabled(enabled)
+        self._update_sam_switch_text()
 
     def show_missing_model_dialog(self):
         dialog = QDialog(self)
@@ -1037,7 +1117,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         finally:
             self.samLabelCombo.blockSignals(False)
 
-    def on_sam_label_combo_activated(self):
+    def on_sam_label_combo_changed(self, _index):
         label = self.samLabelCombo.currentText().strip()
         if label in self.class_list:
             self.set_active_label(label)
@@ -1186,8 +1266,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._select_shape_on_canvas(shape, focus_view=True)
             self.edit_shape_label(shape)
 
+    def _annotation_shape_from_item(self, item):
+        current = item
+        while current is not None:
+            if isinstance(current, (RectShape, PolyShape, PointShape, RotatedRectShape)):
+                return current
+            current = current.parentItem()
+        return None
+
+    def _selected_annotation_shapes(self):
+        return [
+            item for item in self.scene.selectedItems()
+            if isinstance(item, (RectShape, PolyShape, PointShape, RotatedRectShape))
+        ]
+
     def show_canvas_label_menu(self, pos):
         menu = QMenu(self)
+        selected_shapes = self._selected_annotation_shapes()
+        scene_pos = self.view.mapToScene(pos)
+        hovered_selected_shape = None
+        selected_ids = {id(shape) for shape in selected_shapes}
+        for item in self.scene.items(scene_pos):
+            shape = self._annotation_shape_from_item(item)
+            if shape is not None and id(shape) in selected_ids:
+                hovered_selected_shape = shape
+                break
+
+        edit_selected_action = menu.addAction(
+            f"修改 {len(selected_shapes)} 个选中标注类别" if selected_shapes else "修改选中标注类别"
+        )
+        edit_selected_action.setEnabled(bool(selected_shapes and hovered_selected_shape is not None))
+        menu.addSeparator()
         for index, cls_name in enumerate(self.class_list[:9], 1):
             action = menu.addAction(f"{index}. {cls_name}")
             action.setData(cls_name)
@@ -1200,6 +1309,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         create_action = menu.addAction("新建标签")
         chosen = menu.exec(self.view.mapToGlobal(pos))
         if not chosen:
+            return
+        if chosen == edit_selected_action:
+            self.edit_shapes_label(selected_shapes)
             return
         if chosen == create_action:
             text, ok = QInputDialog.getText(self, "新建类别", "输入类别名称：")
@@ -1230,12 +1342,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         ]
         self._select_shapes_on_canvas(selected_shapes, focus_view=True)
         menu = QMenu(self)
-        edit_action = menu.addAction("修改标签")
-        edit_action.setEnabled(len(selected_shapes) == 1)
+        edit_action = menu.addAction(f"修改 {len(selected_shapes)} 个标注类别")
         delete_action = menu.addAction(f"删除 {len(selected_shapes)} 个标注")
         action = menu.exec(widget.mapToGlobal(pos))
         if action == edit_action and selected_shapes:
-            self.edit_shape_label(selected_shapes[0])
+            self.edit_shapes_label(selected_shapes)
         elif action == delete_action:
             self.delete_shapes(selected_shapes)
         return
@@ -1303,6 +1414,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.listFiles.setCurrentRow(min(current_row, self.listFiles.count() - 1))
         else:
             self.current_image_path = None
+            self._update_window_title()
             self.scene.clear_shapes()
             if self.scene.img_item:
                 self.scene.removeItem(self.scene.img_item)
@@ -1714,6 +1826,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.coordLabel.setText(f"坐标: X: {x}, Y: {y}")
     def on_sam_toggled(self, checked):
         self.scene.set_sam_enabled(checked)
+        self._update_sam_switch_text()
         self._update_help_text(self.scene.mode)
 
     def _set_mode(self, mode):
@@ -2105,6 +2218,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.listFiles.count() > 0:
             self.listFiles.setCurrentRow(0)
         else:
+            self.current_image_path = None
+            self._update_window_title()
             self.update_annotation_panel()
         QTimer.singleShot(0, self._update_file_grid_metrics)
 
@@ -2135,7 +2250,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.push_state()
 
     def edit_shape_label(self, shape):
-        dialog = LabelEditDialog(self.class_list, selected_index=self.last_edit_label_index, parent=self)
+        self.edit_shapes_label([shape])
+
+    def edit_shapes_label(self, shapes):
+        valid_shapes = [
+            shape for shape in shapes
+            if isinstance(shape, (RectShape, PolyShape, PointShape, RotatedRectShape)) and shape.scene() is self.scene
+        ]
+        if not valid_shapes:
+            return
+
+        selected_index = self.last_edit_label_index
+        first_label = getattr(valid_shapes[0], "label", "")
+        if first_label in self.class_list:
+            selected_index = self.class_list.index(first_label)
+
+        dialog = LabelEditDialog(self.class_list, selected_index=selected_index, parent=self)
         if dialog.exec() != QDialog.Accepted:
             return
 
@@ -2154,10 +2284,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.last_edit_label_index = self.class_list.index(cls_name)
             self.settings.setValue("last_edit_label_index", self.last_edit_label_index)
 
-        shape.label = cls_name
-        self._apply_shape_label_style(shape, cls_name)
-        if hasattr(shape, 'update_label_text'):
-            shape.update_label_text(cls_name)
+        for shape in valid_shapes:
+            shape.label = cls_name
+            self._apply_shape_label_style(shape, cls_name)
+            if hasattr(shape, 'update_label_text'):
+                shape.update_label_text(cls_name)
+            if hasattr(shape, 'update_label_position'):
+                shape.update_label_position(shape)
 
         self.update_annotation_panel()
         self.auto_save_annotation()
@@ -2316,6 +2449,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             path = current.data(Qt.UserRole) or current.text()
             self.pending_prompt_targets.clear()
             self.current_image_path = path
+            self._update_window_title()
             self.scene.load_image(path)
             self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
             self.load_annotations(path)
@@ -2332,6 +2466,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self._set_status("分析完成，可以开始智能标注", "green")
             else:
                 self._set_status("等待后台加载模型，稍后将自动分析图片...", "orange")
+        else:
+            self.current_image_path = None
+            self._update_window_title()
 
     def auto_save_annotation(self):
         if not self.current_image_path or not self.scene.img_item: return
