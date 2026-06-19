@@ -1321,6 +1321,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def show_canvas_label_menu(self, pos):
         menu = QMenu(self)
+        sam_action_text = "关闭 SAM" if self.samSwitch.isChecked() else "打开 SAM"
+        sam_action = menu.addAction(sam_action_text if self.samSwitch.isEnabled() else "SAM 不可用")
+        sam_action.setEnabled(self.samSwitch.isEnabled())
+        menu.addSeparator()
+
         selected_shapes = self._selected_annotation_shapes()
         scene_pos = self.view.mapToScene(pos)
         hovered_selected_shape = None
@@ -1348,6 +1353,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         create_action = menu.addAction("新建标签")
         chosen = menu.exec(self.view.mapToGlobal(pos))
         if not chosen:
+            return
+        if chosen == sam_action:
+            self.samSwitch.setChecked(not self.samSwitch.isChecked())
             return
         if chosen == edit_selected_action:
             self.edit_shapes_label(selected_shapes)
