@@ -1625,7 +1625,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         def result_sort_key(res):
             x, y, w, h = res.get("rect", [0, 0, 0, 0])
-            return (float(y) + float(h) / 2.0, float(x) + float(w) / 2.0)
+            return (float(y), float(x))
 
         for res in sorted(results, key=result_sort_key):
             if self.scene.mode == CanvasMode.RECT:
