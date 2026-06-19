@@ -77,6 +77,9 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
+    module_collection_mode={
+        "enum": "pyz+py",
+    },
 )
 
 a.binaries = _drop_toc_items(
