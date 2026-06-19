@@ -182,6 +182,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._default_palette = QApplication.instance().palette()
         self._last_right_panel_width = 320
         self._file_grid_icon_size = QSize()
+        self._file_grid_item_size = QSize()
         self.sam_model_available = False
         self.sam_model_loading = False
 
@@ -206,13 +207,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.scene.state_changed.connect(self.push_state)
         self._breathing_cycle_elapsed = 0
         self._breathing_label_active_ms = 2200
-        self._breathing_label_gap_ms = 600
         self._breathing_timer = QTimer(self)
         self._breathing_timer.setInterval(50)
         self._breathing_timer.timeout.connect(self._tick_breathing_highlight)
 
         self._connect_signals()
         self._update_file_grid_metrics()
+        QTimer.singleShot(0, self._update_file_grid_metrics)
         self._setup_shortcuts()
         self.formatWidget.set_format(self.current_format)
         self.themeWidget.set_theme(self.current_theme)
@@ -254,6 +255,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.listFiles.currentItemChanged.connect(self.on_file_selected)
         self.listFiles.setContextMenuPolicy(Qt.CustomContextMenu)
         self.listFiles.customContextMenuRequested.connect(self.show_file_list_context_menu)
+        self.splitter.splitterMoved.connect(lambda _pos, _index: self._update_file_grid_metrics())
         self.view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self.show_canvas_label_menu)
         self.scene.mouse_moved.connect(self.update_coordinate_label)
@@ -305,20 +307,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.settings.setValue("breathing_highlight", self.breathing_highlight_enabled)
 
     def _tick_breathing_highlight(self):
-        cycle_ms = self._breathing_label_active_ms + self._breathing_label_gap_ms
-        self._breathing_cycle_elapsed = (self._breathing_cycle_elapsed + self._breathing_timer.interval()) % cycle_ms
+        self._breathing_cycle_elapsed = (
+            self._breathing_cycle_elapsed + self._breathing_timer.interval()
+        ) % self._breathing_label_active_ms
         self._update_breathing_active_label()
         if not BaseShape.breathing_active_label:
             self._refresh_breathing_highlight()
             return
-        in_gap = self._breathing_cycle_elapsed >= self._breathing_label_active_ms
-        if in_gap:
-            BaseShape.breathing_alpha = 0
-            self._refresh_breathing_highlight()
-            return
         progress = self._breathing_cycle_elapsed / self._breathing_label_active_ms
         wave = (1.0 - math.cos(progress * math.pi * 2)) / 2.0
-        BaseShape.breathing_alpha = int(wave * 100)
+        BaseShape.breathing_alpha = int(wave * 125)
         self._refresh_breathing_highlight()
 
     def _reset_breathing_highlight(self):
@@ -437,16 +435,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _update_file_grid_metrics(self):
         viewport_width = self.listFiles.viewport().width() or self.listFiles.width() or self.leftPanel.width() or 292
         content_width = max(1, viewport_width - 14)
-        columns = max(1, content_width // 124)
-        item_width = max(104, (content_width - (columns - 1) * 8) // columns)
+        min_item_width = 104
+        item_gap = 8
+        columns = max(1, (content_width + item_gap) // (min_item_width + item_gap))
+        item_width = max(min_item_width, (content_width - (columns - 1) * item_gap) // columns)
         icon_width = max(82, item_width - 16)
         icon_height = max(60, int(icon_width * 0.72))
         icon_size = QSize(icon_width, icon_height)
-        if icon_size == self._file_grid_icon_size:
+        item_size = QSize(item_width, icon_height + 38)
+        if icon_size == self._file_grid_icon_size and item_size == self._file_grid_item_size:
             return
         self._file_grid_icon_size = icon_size
+        self._file_grid_item_size = item_size
         self.listFiles.setIconSize(icon_size)
-        self.listFiles.setGridSize(QSize(item_width, icon_height + 38))
+        self.listFiles.setGridSize(item_size)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1915,6 +1917,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.listFiles.setCurrentRow(0)
         else:
             self.update_annotation_panel()
+        QTimer.singleShot(0, self._update_file_grid_metrics)
 
     def restore_last_session(self):
         last_dir = self.settings.value("last_dir", "", str)
