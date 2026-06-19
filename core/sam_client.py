@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import torch
 import numpy as np
 import cv2
@@ -34,13 +35,14 @@ class SamInferenceWorker(QThread):
     # 🟢 修复：增加了第五个 list 参数，用于传输 OBB 旋转框数据
     result_ready = Signal(list, list, list, float, bool)
 
-    text_result_ready = Signal(list, str)
+    text_result_ready = Signal(list, str, str)
 
     def __init__(self):
         super().__init__()
         self.model = None
         self.processor = None
         self.inference_state = None
+        self.inference_image_path = ""
         self.task_queue = queue.Queue(maxsize=1)
         self.running = True
 
@@ -91,8 +93,10 @@ class SamInferenceWorker(QThread):
 
                 # ================= 文本提示词智能提取分支 =================
                 elif task_type == 'text':
-                    prompt_text = data
+                    prompt_text, image_path = data
                     if not self.processor:
+                        continue
+                    if image_path and image_path != getattr(self, "inference_image_path", None):
                         continue
 
                     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
@@ -139,7 +143,7 @@ class SamInferenceWorker(QThread):
                                         "score": score_val
                                     })
 
-                        self.text_result_ready.emit(results, prompt_text)
+                        self.text_result_ready.emit(results, prompt_text, image_path or "")
 
             except queue.Empty:
                 continue
@@ -147,20 +151,19 @@ class SamInferenceWorker(QThread):
                 print(f"推理错误: {e}")
 
     def request_inference(self, x, y, is_click=False):
-        while not self.task_queue.empty():
-            try:
-                self.task_queue.get_nowait()
-            except queue.Empty:
-                pass
+        self.clear_pending_tasks()
         self.task_queue.put(('point', (x, y), is_click))
 
-    def request_text_inference(self, prompt_text):
+    def request_text_inference(self, prompt_text, image_path=""):
+        self.clear_pending_tasks()
+        self.task_queue.put(('text', (prompt_text, image_path), True))
+
+    def clear_pending_tasks(self):
         while not self.task_queue.empty():
             try:
                 self.task_queue.get_nowait()
             except queue.Empty:
                 pass
-        self.task_queue.put(('text', prompt_text, True))
 
     def stop(self):
         self.running = False
@@ -171,7 +174,7 @@ class SAMClient(QObject):
     model_status_changed = Signal(bool, str)
     # 🟢 修复：增加了第五个 list 参数
     inference_result = Signal(list, list, list, float, bool)
-    text_result_ready = Signal(list, str)
+    text_result_ready = Signal(list, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -182,6 +185,8 @@ class SAMClient(QObject):
         self.inference_worker.text_result_ready.connect(self.text_result_ready)
         self.inference_worker.start()
         self.load_worker = None
+        self.current_image_path = ""
+        self.ready_image_path = ""
 
     def load_model_async(self, checkpoint_path):
         self.model_status_changed.emit(False, "正在后台加载模型，请稍候...")
@@ -200,21 +205,35 @@ class SAMClient(QObject):
 
     def set_image(self, image_path):
         if not self.processor: return
+        normalized_path = os.path.abspath(image_path)
+        self.current_image_path = normalized_path
+        self.ready_image_path = ""
+        self.inference_worker.clear_pending_tasks()
+        self.inference_worker.inference_state = None
+        self.inference_worker.inference_image_path = ""
         try:
-            pil_img = Image.open(image_path).convert("RGB")
+            pil_img = Image.open(normalized_path).convert("RGB")
             with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 state = self.processor.set_image(pil_img)
                 self.inference_worker.inference_state = state
+                self.inference_worker.inference_image_path = normalized_path
+                self.ready_image_path = normalized_path
         except Exception as e:
             print(f"图像特征提取失败: {e}")
+
+    def is_image_ready(self, image_path):
+        return bool(image_path) and self.ready_image_path == os.path.abspath(image_path)
 
     def request_inference(self, x, y, is_click):
         if self.model:
             self.inference_worker.request_inference(x, y, is_click)
 
-    def request_text_inference(self, prompt_text):
-        if self.model:
-            self.inference_worker.request_text_inference(prompt_text)
+    def request_text_inference(self, prompt_text, image_path=""):
+        normalized_path = os.path.abspath(image_path) if image_path else self.ready_image_path
+        if self.model and self.ready_image_path == normalized_path:
+            self.inference_worker.request_text_inference(prompt_text, normalized_path)
+            return True
+        return False
 
     def cleanup(self):
         self.inference_worker.stop()

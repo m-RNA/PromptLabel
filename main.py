@@ -1377,10 +1377,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         prompt = self.samPromptInput.currentText().strip()
         if prompt:
-            self.pending_prompt_targets[prompt] = label
+            image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
+            if not image_path:
+                self._notify("请先打开图片", "warning")
+                return
             self.samSwitch.setChecked(True)
+            if not self.sam_client.is_image_ready(image_path):
+                self._set_status("正在同步当前图片的 SAM 特征...", "orange")
+                QApplication.processEvents()
+                self.sam_client.set_image(image_path)
+            if not self.sam_client.is_image_ready(image_path):
+                self._notify("当前图片 SAM 特征尚未就绪，请稍后再试", "warning")
+                return
+            self.pending_prompt_targets[(prompt, image_path)] = label
             self._set_status(f"正在用提示词“{prompt}”检索，结果将标注为“{label}”...", "orange")
-            self.sam_client.request_text_inference(prompt)
+            if not self.sam_client.request_text_inference(prompt, image_path):
+                self.pending_prompt_targets.pop((prompt, image_path), None)
+                self._notify("当前图片 SAM 特征尚未就绪，请稍后再试", "warning")
 
     def _shape_scene_rect(self, shape):
         if isinstance(shape, RotatedRectShape):
@@ -1543,8 +1556,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.push_state()
         self._set_status(f"参考查找完成，新增 {added} 个相似目标")
 
-    def handle_text_results(self, results, prompt_text):
-        target_label = self.pending_prompt_targets.pop(prompt_text, self.active_label)
+    def handle_text_results(self, results, prompt_text, image_path):
+        result_image_path = os.path.abspath(image_path) if image_path else ""
+        current_image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
+        pending_key = (prompt_text, result_image_path)
+        if result_image_path != current_image_path:
+            self.pending_prompt_targets.pop(pending_key, None)
+            return
+
+        target_label = self.pending_prompt_targets.pop(pending_key, self.active_label)
         if target_label not in self.class_list:
             self._set_status(f"提示词“{prompt_text}”已有结果，但没有可用的目标标签", "red")
             self._notify("请先选择或创建一个标签，再使用提示词检索", "warning")
@@ -1857,8 +1877,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.class_visibility.pop(cls_name, None)
         self.prompt_aliases.pop(cls_name, None)
         self.pending_prompt_targets = {
-            prompt: label
-            for prompt, label in self.pending_prompt_targets.items()
+            key: label
+            for key, label in self.pending_prompt_targets.items()
             if label != cls_name
         }
 
@@ -2207,6 +2227,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if current:
             path = current.data(Qt.UserRole) or current.text()
+            self.pending_prompt_targets.clear()
             self.current_image_path = path
             self.scene.load_image(path)
             self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
