@@ -346,6 +346,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("Left", self.previous_image, False),
             ("D", self.next_image, False),
             ("Right", self.next_image, False),
+            ("Up", lambda: self.select_adjacent_annotation(-1), False),
+            ("W", lambda: self.select_adjacent_annotation(-1), False),
+            ("Down", lambda: self.select_adjacent_annotation(1), False),
+            ("S", lambda: self.select_adjacent_annotation(1), False),
             ("Delete", self.delete_selected_shapes, False),
             ("Backspace", self.delete_selected_shapes, False),
             ("E", self.edit_selected_shape_label, False),
@@ -390,6 +394,46 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         current_idx = self.listFiles.currentRow()
         if current_idx < self.listFiles.count() - 1:
             self.listFiles.setCurrentRow(current_idx + 1)
+
+    def _annotation_navigation_items(self):
+        items = []
+        for _key, (widget, toolbox_index, _mode, _title) in self._annotation_group_config().items():
+            for row in range(widget.count()):
+                item = widget.item(row)
+                shape = item.data(Qt.UserRole) if item is not None else None
+                if shape is not None:
+                    items.append((shape, widget, item, toolbox_index))
+        return items
+
+    def select_adjacent_annotation(self, step):
+        nav_items = self._annotation_navigation_items()
+        if not nav_items:
+            return
+        selected_ids = {id(item) for item in self.scene.selectedItems()}
+        current_index = -1
+        for index, (shape, _widget, _item, _toolbox_index) in enumerate(nav_items):
+            if id(shape) in selected_ids:
+                current_index = index
+                break
+        if current_index < 0:
+            focused_widget = QApplication.focusWidget()
+            for index, (_shape, widget, item, _toolbox_index) in enumerate(nav_items):
+                if focused_widget is widget and item.isSelected():
+                    current_index = index
+                    break
+        next_index = (current_index + step) % len(nav_items)
+        shape, widget, item, toolbox_index = nav_items[next_index]
+        self.annotation_item_syncing = True
+        try:
+            for list_widget in self.annotation_list_widgets():
+                list_widget.clearSelection()
+            self.annotationToolBox.setCurrentIndex(toolbox_index)
+            item.setSelected(True)
+            widget.setCurrentItem(item)
+            widget.scrollToItem(item)
+            self._select_shapes_on_canvas([shape], focus_view=True)
+        finally:
+            self.annotation_item_syncing = False
 
     def set_right_panel_visible(self, visible):
         sizes = self.splitter.sizes()

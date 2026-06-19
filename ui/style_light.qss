@@ -254,25 +254,36 @@ QTabBar::tab:selected {
 }
 
 QToolBox {
-    border: 0px;
+    background-color: #ffffff;
+    border: 1px solid #d8dee8;
+    border-radius: 6px;
+    padding: 4px;
 }
 
 QToolBox::tab {
-    background-color: #f8fafc;
+    background-color: #ffffff;
     border: 1px solid #d8dee8;
-    border-radius: 5px;
+    border-radius: 4px;
     color: #334155;
     font-size: 12px;
     font-weight: 700;
-    height: 26px;
-    margin-top: 4px;
-    padding: 0px 9px;
+    height: 30px;
+    margin: 3px 0px;
+    padding: 0px 10px;
 }
 
 QToolBox::tab:selected {
     background-color: #dcfce7;
     border-color: #22c55e;
     color: #166534;
+}
+
+QListWidget#annotationDrawerList {
+    background-color: #f8fafc;
+    border: 1px solid #d8dee8;
+    border-radius: 4px;
+    margin: 0px 0px 4px 0px;
+    padding: 4px;
 }
 
 QLineEdit,

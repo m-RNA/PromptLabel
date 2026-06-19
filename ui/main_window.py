@@ -332,6 +332,7 @@ class Ui_MainWindow(object):
         self.pointStatsList = QListWidget()
         self.rboxStatsList = QListWidget()
         for widget in (self.rectStatsList, self.polyStatsList, self.pointStatsList, self.rboxStatsList):
+            widget.setObjectName("annotationDrawerList")
             widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.rectStatsIndex = self.annotationToolBox.addItem(self.rectStatsList, "矩形标注")
         self.polyStatsIndex = self.annotationToolBox.addItem(self.polyStatsList, "多边形标注")
