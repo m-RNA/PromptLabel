@@ -215,6 +215,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._breathing_timer = QTimer(self)
         self._breathing_timer.setInterval(50)
         self._breathing_timer.timeout.connect(self._tick_breathing_highlight)
+        self.sam_analysis_delay_ms = 450
+        self._sam_analysis_timer = QTimer(self)
+        self._sam_analysis_timer.setSingleShot(True)
+        self._sam_analysis_timer.timeout.connect(self._analyze_current_image_for_sam)
 
         self._connect_signals()
         self._update_window_title()
@@ -938,6 +942,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.samPromptBtn.setEnabled(enabled)
         self.samRefBtn.setEnabled(enabled)
         self._update_sam_switch_text()
+
+    def _cancel_pending_sam_analysis(self):
+        if self._sam_analysis_timer.isActive():
+            self._sam_analysis_timer.stop()
+
+    def _schedule_current_image_sam_analysis(self, delay_ms=None):
+        if not self.current_image_path:
+            self._cancel_pending_sam_analysis()
+            return
+        if not self.sam_client.model or not self.samSwitch.isChecked() or not self.samSwitch.isEnabled():
+            self._cancel_pending_sam_analysis()
+            return
+        self._sam_analysis_timer.start(self.sam_analysis_delay_ms if delay_ms is None else delay_ms)
+
+    def _analyze_current_image_for_sam(self):
+        image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
+        if not image_path:
+            return
+        if not self.sam_client.model or not self.samSwitch.isChecked() or not self.samSwitch.isEnabled():
+            return
+        if self.sam_client.is_image_ready(image_path):
+            self._set_status("当前图片 SAM 特征已就绪", "green")
+            return
+        self._set_status("正在分析当前图片智能特征...", "orange")
+        QApplication.processEvents()
+        self.sam_client.set_image(image_path)
+        if self.current_image_path and os.path.abspath(self.current_image_path) == image_path:
+            self._set_status("分析完成，可以开始智能标注", "green")
 
     def show_missing_model_dialog(self):
         dialog = QDialog(self)
@@ -1911,6 +1943,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.scene.set_sam_enabled(checked)
         self._update_sam_switch_text()
         self._update_help_text(self.scene.mode)
+        if checked:
+            self._schedule_current_image_sam_analysis()
+        else:
+            self._cancel_pending_sam_analysis()
 
     def _set_mode(self, mode):
         self.scene.set_mode(mode)
@@ -2509,10 +2545,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._set_status("SAM3 模型加载失败，智能辅助已禁用", "danger")
             self.show_sam_load_error_dialog(msg)
         if success and self.current_image_path:
-            self._set_status("模型已就绪，正在自动分析当前图片特征...")
-            QApplication.processEvents()
-            self.sam_client.set_image(self.current_image_path)
-            self._set_status("分析完成，可以开始智能标注")
+            self._set_status("模型已就绪，稍后分析当前图片特征...")
+            self._schedule_current_image_sam_analysis()
 
     def show_sam_load_error_dialog(self, msg):
         error_text = (msg or "未知错误").strip()
@@ -2543,15 +2577,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.push_state()
 
             if self.sam_client.model:
-                self._set_status("正在分析图片智能特征...", "orange")
-                QApplication.processEvents()
-                self.sam_client.set_image(path)
-                self._set_status("分析完成，可以开始智能标注", "green")
+                if self.samSwitch.isChecked() and self.samSwitch.isEnabled():
+                    self._set_status("已切换图片，停止切换后将分析智能特征...", "orange")
+                self._schedule_current_image_sam_analysis()
             else:
                 self._set_status("等待后台加载模型，稍后将自动分析图片...", "orange")
         else:
             self.current_image_path = None
             self._update_window_title()
+            self._cancel_pending_sam_analysis()
 
     def auto_save_annotation(self):
         if not self.current_image_path or not self.scene.img_item: return
