@@ -185,6 +185,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._file_grid_item_size = QSize()
         self.sam_model_available = False
         self.sam_model_loading = False
+        self._annotation_panel_updates_suspended = False
 
         self.modeLabel = QLabel("模式: 矩形标注")
         self.statusBar.addWidget(self.modeLabel)
@@ -1248,6 +1249,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if group:
                     grouped_shapes[group].append(shape)
 
+            first_non_empty_index = None
+            current_group_has_items = False
+            current_index = self.annotationToolBox.currentIndex()
             for key, (widget, toolbox_index, _mode, title) in self._annotation_group_config().items():
                 visible_count = sum(
                     1 for shape in grouped_shapes[key]
@@ -1255,6 +1259,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 )
                 self.annotationToolBox.setItemText(toolbox_index, f"{title} ({visible_count})")
                 self._render_annotation_group(widget, grouped_shapes[key])
+                if visible_count > 0:
+                    if first_non_empty_index is None:
+                        first_non_empty_index = toolbox_index
+                    if toolbox_index == current_index:
+                        current_group_has_items = True
+            if first_non_empty_index is not None and not current_group_has_items:
+                self.annotationToolBox.setCurrentIndex(first_non_empty_index)
         finally:
             self.annotation_item_syncing = previous_sync_state
 
@@ -2257,12 +2268,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         img_h = self.scene.img_item.pixmap().height()
         base_path = os.path.splitext(image_path)[0]
 
-        if self.current_format == "json":
-            self._load_json(base_path + ".json")
-        elif self.current_format == "yolo":
-            self._load_yolo(base_path + ".txt", img_w, img_h)
-        elif self.current_format == "xml":
-            self._load_xml(base_path + ".xml")
+        previous_suspend_state = self._annotation_panel_updates_suspended
+        self._annotation_panel_updates_suspended = True
+        try:
+            if self.current_format == "json":
+                self._load_json(base_path + ".json")
+            elif self.current_format == "yolo":
+                self._load_yolo(base_path + ".txt", img_w, img_h)
+            elif self.current_format == "xml":
+                self._load_xml(base_path + ".xml")
+        finally:
+            self._annotation_panel_updates_suspended = previous_suspend_state
+        self.scene.update()
 
     def _add_shape_to_scene(self, shape, label):
         # docstring removed
@@ -2273,7 +2290,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.save_classes()
         self.scene.addItem(shape)
         self._apply_shape_label_style(shape, label)
-        self.update_annotation_panel()
+        if not self._annotation_panel_updates_suspended:
+            self.update_annotation_panel()
 
     def _load_json(self, json_path):
         if not os.path.exists(json_path): return
