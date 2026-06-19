@@ -342,6 +342,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("Ctrl+Z", self.undo, True),
             ("Ctrl+Y", self.redo, True),
             ("Ctrl+Shift+Z", self.redo, True),
+            ("Ctrl+A", self.select_all_current_annotation_group, False),
             ("A", self.previous_image, False),
             ("Left", self.previous_image, False),
             ("D", self.next_image, False),
@@ -439,6 +440,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._select_shapes_on_canvas([shape], focus_view=True)
         finally:
             self.annotation_item_syncing = False
+
+    def select_all_current_annotation_group(self):
+        current_widget = self.annotationToolBox.currentWidget()
+        if current_widget not in self.annotation_list_widgets():
+            return
+        shapes = []
+        previous_sync_state = self.annotation_item_syncing
+        self.annotation_item_syncing = True
+        current_widget.blockSignals(True)
+        try:
+            current_widget.clearSelection()
+            for row in range(current_widget.count()):
+                item = current_widget.item(row)
+                shape = item.data(Qt.UserRole) if item is not None else None
+                if shape is None:
+                    continue
+                item.setSelected(True)
+                shapes.append(shape)
+            if shapes:
+                current_widget.setCurrentItem(current_widget.item(0))
+                self._select_shapes_on_canvas(shapes, focus_view=True)
+        finally:
+            current_widget.blockSignals(False)
+            self.annotation_item_syncing = previous_sync_state
 
     def set_right_panel_visible(self, visible):
         sizes = self.splitter.sizes()
@@ -669,10 +694,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _annotation_group_config(self):
         return {
-            "rectangle": (self.rectStatsList, self.rectStatsIndex, CanvasMode.RECT, "矩形标注"),
-            "polygon": (self.polyStatsList, self.polyStatsIndex, CanvasMode.POLY, "多边形标注"),
-            "point": (self.pointStatsList, self.pointStatsIndex, CanvasMode.POINT, "点标注"),
-            "rbox": (self.rboxStatsList, self.rboxStatsIndex, CanvasMode.RBOX, "旋转框标注"),
+            "rectangle": (self.rectStatsList, self.rectStatsIndex, CanvasMode.RECT, "矩形"),
+            "polygon": (self.polyStatsList, self.polyStatsIndex, CanvasMode.POLY, "多边形"),
+            "point": (self.pointStatsList, self.pointStatsIndex, CanvasMode.POINT, "点"),
+            "rbox": (self.rboxStatsList, self.rboxStatsIndex, CanvasMode.RBOX, "旋转框"),
         }
 
     def annotation_list_widgets(self):

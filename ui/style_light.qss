@@ -252,36 +252,34 @@ QTabBar::tab:selected {
     color: #166534;
 }
 
-QWidget#annotationDrawer {
+QTabWidget#annotationTypeTabs::pane {
     background-color: #ffffff;
     border: 1px solid #d8dee8;
     border-radius: 6px;
-    padding: 4px;
+    top: -1px;
 }
 
-QToolButton#annotationDrawerHeader {
-    background-color: #ffffff;
+QTabWidget#annotationTypeTabs QTabBar::tab {
+    background-color: #f8fafc;
     border: 1px solid #d8dee8;
-    border-radius: 4px;
-    color: #334155;
-    font-size: 12px;
+    border-bottom-color: #cbd5e1;
+    color: #64748b;
     font-weight: 700;
-    height: 30px;
-    margin: 3px 0px;
-    padding: 0px 10px;
+    min-width: 54px;
+    padding: 5px 8px;
 }
 
-QToolButton#annotationDrawerHeader:checked {
-    background-color: #dcfce7;
-    border-color: #22c55e;
+QTabWidget#annotationTypeTabs QTabBar::tab:selected {
+    background-color: #ffffff;
+    border-bottom-color: #ffffff;
     color: #166534;
 }
 
-QListWidget#annotationDrawerList {
+QListWidget#annotationTypeList {
     background-color: #f8fafc;
-    border: 1px solid #d8dee8;
-    border-radius: 4px;
-    margin: 0px 0px 4px 0px;
+    border: 0px;
+    border-radius: 0px;
+    margin: 0px;
     padding: 4px;
 }
 

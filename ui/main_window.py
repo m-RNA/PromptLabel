@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
     QGraphicsView, QLabel, QLineEdit, QPushButton, QStatusBar, QMenu,
-    QSplitter, QListView, QToolButton, QComboBox, QAbstractItemView, QTreeWidget,
+    QSplitter, QListView, QComboBox, QAbstractItemView, QTreeWidget,
     QTabWidget
 )
 from PySide6.QtCore import Qt, Signal, QSize
@@ -108,67 +108,6 @@ class SwitchControl(QWidget):
         painter.setBrush(knob)
         x = self.width() - 24 if self._checked else 2
         painter.drawEllipse(x, 2, 22, 22)
-
-
-class AnnotationDrawer(QWidget):
-    currentChanged = Signal(int)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("annotationDrawer")
-        self._entries = []
-        self._current_index = -1
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-        layout.addStretch(1)
-        self._layout = layout
-
-    def addItem(self, widget, title):
-        index = len(self._entries)
-        button = QToolButton()
-        button.setObjectName("annotationDrawerHeader")
-        button.setText(title)
-        button.setCheckable(True)
-        button.setChecked(index == 0)
-        button.setArrowType(Qt.DownArrow if index == 0 else Qt.RightArrow)
-        button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        button.toggled.connect(lambda checked, idx=index: self._set_item_expanded(idx, checked, emit=True))
-        widget.setVisible(index == 0)
-
-        self._layout.insertWidget(self._layout.count() - 1, button)
-        self._layout.insertWidget(self._layout.count() - 1, widget)
-        self._entries.append({"button": button, "widget": widget})
-        if index == 0:
-            self._current_index = 0
-        return index
-
-    def setItemText(self, index, text):
-        if 0 <= index < len(self._entries):
-            self._entries[index]["button"].setText(text)
-
-    def setCurrentIndex(self, index):
-        if 0 <= index < len(self._entries):
-            self._set_item_expanded(index, True, emit=True)
-
-    def currentIndex(self):
-        return self._current_index
-
-    def _set_item_expanded(self, index, expanded, emit=False):
-        if not 0 <= index < len(self._entries):
-            return
-        entry = self._entries[index]
-        button = entry["button"]
-        if button.isChecked() != expanded:
-            button.blockSignals(True)
-            button.setChecked(expanded)
-            button.blockSignals(False)
-        button.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
-        entry["widget"].setVisible(expanded)
-        if expanded:
-            self._current_index = index
-            if emit:
-                self.currentChanged.emit(index)
 
 
 class CanvasView(QGraphicsView):
@@ -380,19 +319,19 @@ class Ui_MainWindow(object):
         self.annotationPanelLayout = QVBoxLayout(self.annotationPanel)
         self.annotationPanelLayout.setContentsMargins(0, 0, 0, 0)
         self.annotationPanelLayout.setSpacing(6)
-        self.annotationToolBox = AnnotationDrawer()
-        self.annotationToolBox.setObjectName("annotationToolBox")
+        self.annotationToolBox = QTabWidget()
+        self.annotationToolBox.setObjectName("annotationTypeTabs")
         self.rectStatsList = QListWidget()
         self.polyStatsList = QListWidget()
         self.pointStatsList = QListWidget()
         self.rboxStatsList = QListWidget()
         for widget in (self.rectStatsList, self.polyStatsList, self.pointStatsList, self.rboxStatsList):
-            widget.setObjectName("annotationDrawerList")
+            widget.setObjectName("annotationTypeList")
             widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.rectStatsIndex = self.annotationToolBox.addItem(self.rectStatsList, "矩形标注")
-        self.polyStatsIndex = self.annotationToolBox.addItem(self.polyStatsList, "多边形标注")
-        self.pointStatsIndex = self.annotationToolBox.addItem(self.pointStatsList, "点标注")
-        self.rboxStatsIndex = self.annotationToolBox.addItem(self.rboxStatsList, "旋转框标注")
+        self.rectStatsIndex = self.annotationToolBox.addTab(self.rectStatsList, "矩形")
+        self.polyStatsIndex = self.annotationToolBox.addTab(self.polyStatsList, "多边形")
+        self.pointStatsIndex = self.annotationToolBox.addTab(self.pointStatsList, "点")
+        self.rboxStatsIndex = self.annotationToolBox.addTab(self.rboxStatsList, "旋转框")
         self.annotationPanelLayout.addWidget(self.annotationToolBox)
 
         self.rightTabs = QTabWidget()
