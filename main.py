@@ -401,6 +401,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("Delete", self.delete_selected_shapes, False),
             ("Backspace", self.delete_selected_shapes, False),
             ("0", self.delete_selected_shapes, False),
+            ("F", self.delete_selected_shapes, False),
             ("E", self.edit_selected_shape_label, False),
             ("F1", self.show_help_dialog, True),
             ("R", lambda: self._set_mode(CanvasMode.RECT), False),
@@ -1874,7 +1875,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "Q / Space：切换 SAM\n"
             "R / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
             "E：修改当前标注标签\n"
-            "Delete / Backspace：删除当前标注\n"
+            "F / Delete / Backspace：删除当前标注\n"
             "F1：打开帮助\n\n"
             "提示词：\n"
             "Enter 或“提交”按钮会提交提示词\n"
