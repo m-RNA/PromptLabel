@@ -179,6 +179,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.last_edit_label_index = self.settings.value("last_edit_label_index", 0, int)
         self.annotation_item_syncing = False
         self.shape_to_item = {}
+        self._sam_label_combo_changing = False
         self._default_palette = QApplication.instance().palette()
         self._last_left_panel_width = 300
         self._last_right_panel_width = 320
@@ -267,7 +268,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.splitter.splitterMoved.connect(lambda _pos, _index: self._on_splitter_moved())
         self.view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self.show_canvas_label_menu)
-        self.scene.mouse_moved.connect(self.update_coordinate_label)
         self.scene.shape_drawn.connect(self.handle_new_shape)
         self.scene.selectionChanged.connect(self.sync_annotation_selection_from_scene)
 
@@ -323,12 +323,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.setWindowTitle("PromptLabel")
 
     def _update_breathing_action_text(self):
-        if self.breathing_highlight_enabled:
-            self.actionBreathingHighlight.setText("关闭呼吸高亮")
-            self.actionBreathingHighlight.setToolTip("关闭当前标签的呼吸高亮")
-        else:
-            self.actionBreathingHighlight.setText("打开呼吸高亮")
-            self.actionBreathingHighlight.setToolTip("打开当前标签的呼吸高亮")
+        self.actionBreathingHighlight.setText("呼吸高亮")
+        self.actionBreathingHighlight.setToolTip(
+            "当前已启用，点击关闭" if self.breathing_highlight_enabled else "当前已关闭，点击启用"
+        )
 
     def _update_panel_toggle_actions(self):
         sizes = self.splitter.sizes()
@@ -340,9 +338,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionToggleRightPanel.setChecked(right_visible)
         self.actionToggleLeftPanel.blockSignals(False)
         self.actionToggleRightPanel.blockSignals(False)
-        self.actionToggleLeftPanel.setText("隐藏左侧面板" if left_visible else "显示左侧面板")
+        self.actionToggleLeftPanel.setText("隐藏左侧" if left_visible else "显示左侧")
         self.actionToggleLeftPanel.setToolTip("隐藏左侧图片队列" if left_visible else "显示左侧图片队列")
-        self.actionToggleRightPanel.setText("隐藏右侧面板" if right_visible else "显示右侧面板")
+        self.actionToggleRightPanel.setText("隐藏右侧" if right_visible else "显示右侧")
         self.actionToggleRightPanel.setToolTip("隐藏右侧管理面板" if right_visible else "显示右侧管理面板")
 
     def _update_sam_switch_text(self):
@@ -388,7 +386,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _setup_shortcuts(self):
         self._shortcuts = []
         shortcut_map = [
-            ("Ctrl+S", lambda: self.save_annotation(self.current_format), True),
             ("Ctrl+Z", self.undo, True),
             ("Ctrl+Y", self.redo, True),
             ("Ctrl+Shift+Z", self.redo, True),
@@ -434,9 +431,38 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         return isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit))
 
     def eventFilter(self, watched, event):
+        if event.type() == QEvent.Wheel and self._handle_sam_label_combo_wheel(watched, event):
+            return True
         if event.type() == QEvent.KeyPress and self._handle_history_shortcut_event(event):
             return True
         return super().eventFilter(watched, event)
+
+    def _handle_sam_label_combo_wheel(self, watched, event):
+        if not hasattr(self, "samLabelCombo"):
+            return False
+        if watched not in (self.samLabelCombo, self.samLabelCombo.lineEdit()):
+            return False
+        if self.samLabelCombo.view().isVisible():
+            return False
+        if self.samLabelCombo.count() <= 0:
+            return False
+
+        delta = event.angleDelta().y()
+        if delta == 0:
+            return False
+
+        step = -1 if delta > 0 else 1
+        current_index = self.samLabelCombo.currentIndex()
+        if current_index < 0:
+            current_index = 0
+        next_index = max(0, min(self.samLabelCombo.count() - 1, current_index + step))
+        if next_index == current_index:
+            event.accept()
+            return True
+
+        self.samLabelCombo.setCurrentIndex(next_index)
+        event.accept()
+        return True
 
     def _handle_history_shortcut_event(self, event):
         active_window = QApplication.activeWindow()
@@ -732,9 +758,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             item = self.listFiles.item(index)
             if item.data(Qt.UserRole) == target_path:
                 file_name = item.data(Qt.UserRole + 1) or os.path.basename(target_path)
-                status_text = "已标注" if self.has_annotation_for_image(target_path) else "未标注"
-                item.setText(f"{file_name}\n[{status_text}]")
+                item.setText(file_name)
                 break
+
+    def update_file_queue_title(self):
+        if hasattr(self, "fileTitle"):
+            self.fileTitle.setText(f"图片队列 ({self.listFiles.count()} 张)")
 
     def add_class_to_list(self, cls_name):
         if cls_name not in self.class_list:
@@ -1096,7 +1125,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.listClasses.clearSelection()
             self.listClasses.setCurrentItem(None)
             self.listClasses.blockSignals(False)
-        self.refresh_label_combo()
+        if not self._sam_label_combo_changing:
+            self.refresh_label_combo()
         self.refresh_prompt_combo()
         if self.breathing_highlight_enabled:
             self._reset_breathing_highlight()
@@ -1111,7 +1141,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.samLabelCombo.clear()
             self.samLabelCombo.addItems(self.class_list)
             if target_text:
-                self.samLabelCombo.setEditText(target_text)
+                target_index = self.samLabelCombo.findText(target_text)
+                if target_index >= 0:
+                    self.samLabelCombo.setCurrentIndex(target_index)
+                else:
+                    self.samLabelCombo.setEditText(target_text)
             else:
                 self.samLabelCombo.setEditText("")
         finally:
@@ -1120,7 +1154,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def on_sam_label_combo_changed(self, _index):
         label = self.samLabelCombo.currentText().strip()
         if label in self.class_list:
-            self.set_active_label(label)
+            self._sam_label_combo_changing = True
+            try:
+                self.set_active_label(label)
+            finally:
+                self._sam_label_combo_changing = False
 
     def ensure_prompt_label(self):
         label = self.samLabelCombo.currentText().strip() if hasattr(self, "samLabelCombo") else ""
@@ -1410,6 +1448,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         current_row = self.listFiles.row(item)
         self.listFiles.takeItem(current_row)
+        self.update_file_queue_title()
         if self.listFiles.count() > 0:
             self.listFiles.setCurrentRow(min(current_row, self.listFiles.count() - 1))
         else:
@@ -1450,6 +1489,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.annotation_item_syncing = previous_sync_state
 
         self.sync_annotation_selection_from_scene()
+        self.update_annotation_stats_status()
+
+    def update_annotation_stats_status(self):
+        if not hasattr(self, "annotationStatsLabel"):
+            return
+
+        current_mode = self.scene.mode
+        current_key = None
+        current_title = CanvasMode.get_mode_name(current_mode)
+        for key, (_widget, _toolbox_index, mode, title) in self._annotation_group_config().items():
+            if mode == current_mode:
+                current_key = key
+                current_title = title
+                break
+
+        counts = {}
+        for shape in self.scene.items():
+            if self._shape_group_name(shape) != current_key:
+                continue
+            label = getattr(shape, "label", "").strip() or "未命名"
+            counts[label] = counts.get(label, 0) + 1
+
+        ordered_labels = [label for label in self.class_list if counts.get(label, 0) > 0]
+        ordered_labels.extend(label for label in sorted(counts) if label not in ordered_labels)
+        if ordered_labels:
+            stats = "，".join(f"{label}: {counts[label]}" for label in ordered_labels)
+        else:
+            stats = "暂无标注"
+        self.annotationStatsLabel.setText(f"统计: {current_title} | {stats}")
 
     def push_state(self):
         # ??????????
@@ -1799,7 +1867,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         help_text = (
             "快捷键：\n"
             "A / D：上一张 / 下一张\n"
-            "Ctrl + S：保存标注\n"
             "Ctrl + Z：撤销\n"
             "Ctrl + Y / Ctrl + Shift + Z：重做\n"
             "1 - 9：切换当前标签\n"
@@ -1822,8 +1889,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         )
         QMessageBox.about(self, "PromptLabel 帮助", help_text)
 
-    def update_coordinate_label(self, x, y):
-        self.coordLabel.setText(f"坐标: X: {x}, Y: {y}")
     def on_sam_toggled(self, checked):
         self.scene.set_sam_enabled(checked)
         self._update_sam_switch_text()
@@ -1834,6 +1899,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         mode_name = CanvasMode.get_mode_name(mode)
         self.modeLabel.setText(f"模式: {mode_name}标注")
         self._update_help_text(mode)
+        self.update_annotation_stats_status()
 
         if mode == CanvasMode.RECT:
             self.actionRect.setChecked(True)
@@ -2204,9 +2270,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for f in sorted(os.listdir(dir_path)):
             if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
                 full_path = os.path.join(dir_path, f)
-                annotated = self.has_annotation_for_image(full_path)
-                status_text = "已标注" if annotated else "未标注"
-                item = QListWidgetItem(f"{f}\n[{status_text}]")
+                item = QListWidgetItem(f)
                 item.setData(Qt.UserRole, full_path)
                 item.setData(Qt.UserRole + 1, f)
                 item.setToolTip(full_path)
@@ -2215,6 +2279,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     item.setIcon(icon)
                 item.setTextAlignment(Qt.AlignCenter)
                 self.listFiles.addItem(item)
+        self.update_file_queue_title()
         if self.listFiles.count() > 0:
             self.listFiles.setCurrentRow(0)
         else:
