@@ -57,7 +57,7 @@ class ThemeSelectorWidget(QWidget):
         self.label.setObjectName("toolbarFieldLabel")
         self.combo = QComboBox()
         self.combo.setObjectName("toolbarThemeCombo")
-        self.combo.addItem("跟随系统", "system")
+        self.combo.addItem("自动", "system")
         self.combo.addItem("浅色", "light")
         self.combo.addItem("深色", "dark")
         layout.addWidget(self.label)

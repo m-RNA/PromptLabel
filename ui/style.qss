@@ -1,4 +1,4 @@
-/* LuoHuaLabel compact dark workbench */
+/* PromptLabel compact dark workbench */
 
 * {
     selection-background-color: #16a34a;
@@ -105,14 +105,15 @@ QComboBox#toolbarThemeCombo {
     color: #e5e7eb;
     font-size: 12px;
     font-weight: 600;
-    min-height: 24px;
-    padding: 4px 12px;
+    min-height: 30px;
+    max-height: 30px;
+    padding: 0px 12px;
     text-align: center;
 }
 
 QPushButton#toolbarSelectButton,
 QComboBox#toolbarThemeCombo {
-    padding: 4px 24px 4px 9px;
+    padding: 0px 24px 0px 9px;
 }
 
 QToolButton:hover,
