@@ -187,6 +187,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._file_grid_item_size = QSize()
         self.sam_model_available = False
         self.sam_model_loading = False
+        self._default_sam_enabled_applied = False
         self._annotation_panel_updates_suspended = False
 
         self.modeLabel = QLabel("模式: 矩形标注")
@@ -925,6 +926,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if not enabled and self.samSwitch.isChecked():
             self.samSwitch.setChecked(False)
         self.samSwitch.setEnabled(enabled)
+        if enabled and not self._default_sam_enabled_applied:
+            self._default_sam_enabled_applied = True
+            self.samSwitch.setChecked(True)
         self.samLabelCombo.setEnabled(enabled)
         self.samPromptInput.setEnabled(enabled)
         self.samPromptBtn.setEnabled(enabled)
