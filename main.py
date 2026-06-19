@@ -1530,7 +1530,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             stats = "，".join(f"{label}: {counts[label]}" for label in ordered_labels)
         else:
             stats = "暂无标注"
-        self.annotationStatsLabel.setText(f"统计: {current_title} | {stats}")
+        total_count = sum(counts.values())
+        self.annotationStatsLabel.setText(f"统计: {current_title} | 总数: {total_count} | {stats}")
 
     def push_state(self):
         # ??????????
