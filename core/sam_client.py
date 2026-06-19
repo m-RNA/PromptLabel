@@ -196,6 +196,7 @@ class SAMClient(QObject):
             self.inference_worker.model = model
             self.inference_worker.processor = processor
         self.model_status_changed.emit(success, msg)
+        self.load_worker = None
 
     def set_image(self, image_path):
         if not self.processor: return

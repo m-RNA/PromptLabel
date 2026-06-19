@@ -2056,20 +2056,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def update_model_status(self, success, msg):
         self._set_status(msg)
+        load_failed = False
         if success:
             self.sam_model_loading = False
             self.sam_model_available = True
         elif self.sam_model_loading and self.sam_client.load_worker is None:
             return
         else:
+            load_failed = self.sam_model_loading
             self.sam_model_loading = False
             self.sam_model_available = False
         self.apply_sam_control_availability()
+        if load_failed:
+            self._set_status("SAM3 模型加载失败，智能辅助已禁用", "danger")
+            self.show_sam_load_error_dialog(msg)
         if success and self.current_image_path:
             self._set_status("模型已就绪，正在自动分析当前图片特征...")
             QApplication.processEvents()
             self.sam_client.set_image(self.current_image_path)
             self._set_status("分析完成，可以开始智能标注")
+
+    def show_sam_load_error_dialog(self, msg):
+        error_text = (msg or "未知错误").strip()
+        QMessageBox.critical(
+            self,
+            "SAM3 模型加载失败",
+            "SAM3 智能辅助加载失败，已自动禁用。\n\n"
+            "错误信息：\n"
+            f"{error_text}",
+        )
 
     def on_file_selected(self, current, previous):
         if previous:

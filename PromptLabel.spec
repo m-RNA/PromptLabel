@@ -13,12 +13,23 @@ datas = [
     ("SAM_LICENSE.txt", "."),
 ]
 
+
+def _append_package_sources(package_dir, package_name, excluded_dirs=None):
+    excluded_dirs = set(excluded_dirs or [])
+    for source_path in package_dir.rglob("*.py"):
+        rel_path = source_path.relative_to(package_dir)
+        if any(part in excluded_dirs for part in rel_path.parts):
+            continue
+        datas.append((str(source_path), str(Path(package_name) / rel_path.parent)))
+
+
 sam3_spec = importlib.util.find_spec("sam3")
 if sam3_spec and sam3_spec.submodule_search_locations:
     sam3_dir = Path(next(iter(sam3_spec.submodule_search_locations)))
     bpe_vocab = sam3_dir / "assets" / "bpe_simple_vocab_16e6.txt.gz"
     if bpe_vocab.exists():
         datas.append((str(bpe_vocab), "sam3/assets"))
+    _append_package_sources(sam3_dir, "sam3", excluded_dirs={"agent", "eval", "__pycache__"})
 
 hiddenimports = []
 excludes = [
