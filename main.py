@@ -204,12 +204,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.redo_stack = []
         self.max_history_steps = 20
         self.scene.state_changed.connect(self.push_state)
-        self._breathing_phase = 0.0
+        self._breathing_phase = -math.pi / 2
         self._breathing_label_index = 0
         self._breathing_label_switch_elapsed = 0
-        self._breathing_label_switch_ms = 900
+        self._breathing_label_active_ms = 1800
+        self._breathing_label_gap_ms = 450
         self._breathing_timer = QTimer(self)
-        self._breathing_timer.setInterval(40)
+        self._breathing_timer.setInterval(60)
         self._breathing_timer.timeout.connect(self._tick_breathing_highlight)
 
         self._connect_signals()
@@ -294,7 +295,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.breathing_highlight_enabled = bool(enabled)
         BaseShape.breathing_enabled = self.breathing_highlight_enabled
         if self.breathing_highlight_enabled:
-            self._breathing_phase = 0.0
+            self._breathing_phase = -math.pi / 2
             self._breathing_label_switch_elapsed = 0
             self._update_breathing_active_label()
             if not self._breathing_timer.isActive():
@@ -309,12 +310,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _tick_breathing_highlight(self):
         self._breathing_label_switch_elapsed += self._breathing_timer.interval()
-        if self._breathing_label_switch_elapsed >= self._breathing_label_switch_ms:
-            self._breathing_label_switch_elapsed = 0
+        cycle_ms = self._breathing_label_active_ms + self._breathing_label_gap_ms
+        if self._breathing_label_switch_elapsed >= cycle_ms:
+            self._breathing_label_switch_elapsed %= cycle_ms
             self._breathing_label_index += 1
-            self._breathing_phase = 0.0
-        self._update_breathing_active_label()
-        self._breathing_phase = (self._breathing_phase + 0.32) % (math.pi * 2)
+            self._breathing_phase = -math.pi / 2
+        in_gap = self._breathing_label_switch_elapsed >= self._breathing_label_active_ms
+        self._update_breathing_active_label(active=not in_gap)
+        if in_gap:
+            BaseShape.breathing_alpha = BaseShape.fill_alpha
+            self._refresh_breathing_highlight()
+            return
+        self._breathing_phase = (self._breathing_phase + 0.14) % (math.pi * 2)
         wave = (math.sin(self._breathing_phase) + 1.0) / 2.0
         BaseShape.breathing_alpha = int(12 + wave * 138)
         self._refresh_breathing_highlight()
@@ -330,11 +337,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         labels.extend(label for label in labels_in_scene if label not in labels)
         return labels
 
-    def _update_breathing_active_label(self):
+    def _update_breathing_active_label(self, active=True):
         labels = self._breathing_labels_in_scene()
-        if not labels:
+        if not labels or not active:
             BaseShape.breathing_active_label = None
-            self._breathing_label_index = 0
+            if not labels:
+                self._breathing_label_index = 0
             return
         self._breathing_label_index %= len(labels)
         BaseShape.breathing_active_label = labels[self._breathing_label_index]

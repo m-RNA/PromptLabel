@@ -14,7 +14,7 @@ QColorDialog,
 QWidget {
     background-color: #eef2f7;
     color: #0f172a;
-    font-family: "Microsoft YaHei UI", "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    font-family: "Microsoft YaHei UI";
     font-size: 12px;
 }
 
