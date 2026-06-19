@@ -201,11 +201,11 @@ class Ui_MainWindow(object):
         self.actionToggleLeftPanel = QAction("隐藏左侧", MainWindow)
         self.actionToggleLeftPanel.setToolTip("显示或隐藏左侧图片队列")
         self.actionToggleLeftPanel.setCheckable(True)
-        self.actionToggleLeftPanel.setChecked(False)
+        self.actionToggleLeftPanel.setChecked(True)
         self.actionToggleRightPanel = QAction("隐藏右侧", MainWindow)
         self.actionToggleRightPanel.setToolTip("显示或隐藏右侧管理面板")
         self.actionToggleRightPanel.setCheckable(True)
-        self.actionToggleRightPanel.setChecked(False)
+        self.actionToggleRightPanel.setChecked(True)
 
         self.modeGroup = QActionGroup(MainWindow)
         for action in [self.actionRect, self.actionPoly, self.actionPoint, self.actionRBox]:
@@ -360,9 +360,7 @@ class Ui_MainWindow(object):
         self.splitter.addWidget(self.rightPanel)
         self.splitter.setCollapsible(0, True)
         self.splitter.setCollapsible(2, True)
-        self.leftPanel.setVisible(False)
-        self.rightPanel.setVisible(False)
-        self.splitter.setSizes([0, 1200, 0])
+        self.splitter.setSizes([300, 900, 300])
 
         self.statusBar = QStatusBar()
         MainWindow.setStatusBar(self.statusBar)
