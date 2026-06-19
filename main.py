@@ -205,6 +205,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.undo_stack = []
         self.redo_stack = []
         self.max_history_steps = 20
+        self.history_suspended = False
         self.scene.state_changed.connect(self.push_state)
         self._breathing_cycle_elapsed = 0
         self._breathing_label_active_ms = 2200
@@ -251,6 +252,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.samPromptBtn.clicked.connect(self.trigger_sam_prompt)
         self.samRefBtn.clicked.connect(self.trigger_reference_search)
+        self.samLabelCombo.activated.connect(lambda _index: self.on_sam_label_combo_activated())
         self.samPromptInput.lineEdit().returnPressed.connect(self.trigger_sam_prompt)
 
         self.listFiles.currentItemChanged.connect(self.on_file_selected)
@@ -630,6 +632,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._populate_prompt_alias_children(item, cls_name)
             item.setExpanded(True)
             self._apply_class_item_style(item, cls_name)
+            self.refresh_label_combo()
             if not self.active_label:
                 self.set_active_label(cls_name)
 
@@ -778,6 +781,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if not enabled and self.samSwitch.isChecked():
             self.samSwitch.setChecked(False)
         self.samSwitch.setEnabled(enabled)
+        self.samLabelCombo.setEnabled(enabled)
         self.samPromptInput.setEnabled(enabled)
         self.samPromptBtn.setEnabled(enabled)
         self.samRefBtn.setEnabled(enabled)
@@ -977,9 +981,41 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.listClasses.clearSelection()
             self.listClasses.setCurrentItem(None)
             self.listClasses.blockSignals(False)
+        self.refresh_label_combo()
         self.refresh_prompt_combo()
         if self.breathing_highlight_enabled:
             self._reset_breathing_highlight()
+
+    def refresh_label_combo(self):
+        if not hasattr(self, "samLabelCombo"):
+            return
+        current_text = self.samLabelCombo.currentText().strip()
+        target_text = self.active_label or current_text
+        self.samLabelCombo.blockSignals(True)
+        try:
+            self.samLabelCombo.clear()
+            self.samLabelCombo.addItems(self.class_list)
+            if target_text:
+                self.samLabelCombo.setEditText(target_text)
+            else:
+                self.samLabelCombo.setEditText("")
+        finally:
+            self.samLabelCombo.blockSignals(False)
+
+    def on_sam_label_combo_activated(self):
+        label = self.samLabelCombo.currentText().strip()
+        if label in self.class_list:
+            self.set_active_label(label)
+
+    def ensure_prompt_label(self):
+        label = self.samLabelCombo.currentText().strip() if hasattr(self, "samLabelCombo") else ""
+        if not label:
+            return self.ensure_active_label()
+        if label not in self.class_list:
+            self.add_class_to_list(label)
+            self.save_classes()
+        self.set_active_label(label)
+        return label
 
     def ensure_active_label(self):
         if self.active_label in self.class_list:
@@ -1270,6 +1306,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def push_state(self):
         # ??????????
+        if self.history_suspended:
+            return
         self.update_annotation_panel()
         if not self.current_image_path: return
         current_state = Exporter.extract_shapes(self.scene)
@@ -1296,7 +1334,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.redo_stack.append(current_state)
             # 获取上一步的状态并还原
             previous_state = self.undo_stack[-1]
-            self.restore_state(previous_state)
+            self.history_suspended = True
+            try:
+                self.restore_state(previous_state)
+            finally:
+                self.history_suspended = False
 
     def redo(self):
         """重做/前进 (Ctrl+Y 或 Ctrl+Shift+Z)"""
@@ -1305,7 +1347,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             next_state = self.redo_stack.pop()
             self.undo_stack.append(next_state)
             # 还原该状态
-            self.restore_state(next_state)
+            self.history_suspended = True
+            try:
+                self.restore_state(next_state)
+            finally:
+                self.history_suspended = False
 
     def restore_state(self, state):
         """根据快照数据，完全重建画板元素"""
@@ -1370,7 +1416,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._notify("点标注模式下不可使用 SAM 提示词提取", "warning")
             return
 
-        label = self.ensure_active_label()
+        label = self.ensure_prompt_label()
         if not label:
             self._notify("请先选择或创建一个标签", "warning")
             return
@@ -1577,7 +1623,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._set_status(f"提取完成：用提示词“{prompt_text}”找到 {len(results)} 个目标，已标注为“{target_label}”", "green")
         self.add_prompt_alias(target_label, prompt_text)
 
-        for res in results:
+        def result_sort_key(res):
+            x, y, w, h = res.get("rect", [0, 0, 0, 0])
+            return (float(y) + float(h) / 2.0, float(x) + float(w) / 2.0)
+
+        for res in sorted(results, key=result_sort_key):
             if self.scene.mode == CanvasMode.RECT:
                 x, y, w, h = res["rect"]
                 shape = RectShape(QRectF(x, y, w, h), target_label)
@@ -1893,6 +1943,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.active_label == cls_name:
             self.set_active_label(self.class_list[0] if self.class_list else "")
         else:
+            self.refresh_label_combo()
             self.refresh_prompt_combo()
 
         self.save_classes()

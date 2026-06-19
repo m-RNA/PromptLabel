@@ -56,13 +56,18 @@ class SamInferenceWorker(QThread):
 
                 if task_type == 'point':
                     x, y = data
+                    image_path = self.inference_image_path
+                    inference_state = self.inference_state
                     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                         masks, scores, _ = self.model.predict_inst(
-                            inference_state=self.inference_state,
+                            inference_state=inference_state,
                             point_coords=np.array([[x, y]]),
                             point_labels=np.array([1]),
                             multimask_output=is_click
                         )
+
+                    if image_path != self.inference_image_path:
+                        continue
 
                     if len(scores) > 0:
                         best_idx = np.argmax(scores)
@@ -98,9 +103,13 @@ class SamInferenceWorker(QThread):
                         continue
                     if image_path and image_path != getattr(self, "inference_image_path", None):
                         continue
+                    inference_state = self.inference_state
 
                     with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                        out_state = self.processor.set_text_prompt(prompt=prompt_text, state=self.inference_state)
+                        out_state = self.processor.set_text_prompt(prompt=prompt_text, state=inference_state)
+
+                        if image_path and image_path != getattr(self, "inference_image_path", None):
+                            continue
 
                         masks = out_state.get("masks", [])
                         scores = out_state.get("scores", [])

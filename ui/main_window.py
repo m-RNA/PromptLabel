@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
-    QGraphicsView, QLabel, QLineEdit, QPushButton, QStatusBar, QMenu,
+    QGraphicsView, QLabel, QLineEdit, QPushButton, QToolButton, QStatusBar, QMenu,
     QSplitter, QListView, QComboBox, QAbstractItemView, QTreeWidget,
     QTabWidget, QSizePolicy
 )
@@ -270,11 +270,20 @@ class Ui_MainWindow(object):
         self.samRowLayout = QHBoxLayout(self.samRow)
         self.samRowLayout.setContentsMargins(10, 8, 10, 8)
         self.samRowLayout.setSpacing(8)
-        self.samTitle = QLabel("SAM")
-        self.samTitle.setObjectName("samTitle")
-        self.samRowLayout.addWidget(self.samTitle)
-        self.samSwitch = SwitchControl()
+        self.samSwitch = QToolButton()
+        self.samSwitch.setObjectName("samToggleButton")
+        self.samSwitch.setText("SAM")
+        self.samSwitch.setCheckable(True)
         self.samRowLayout.addWidget(self.samSwitch)
+        self.labelComboLabel = QLabel("标签")
+        self.labelComboLabel.setObjectName("fieldInlineLabel")
+        self.samRowLayout.addWidget(self.labelComboLabel)
+        self.samLabelCombo = QComboBox()
+        self.samLabelCombo.setObjectName("samLabelCombo")
+        self.samLabelCombo.setEditable(True)
+        self.samLabelCombo.setInsertPolicy(QComboBox.NoInsert)
+        self.samLabelCombo.lineEdit().setPlaceholderText("选择或新增类别")
+        self.samRowLayout.addWidget(self.samLabelCombo)
         self.promptLabel = QLabel("提示词")
         self.promptLabel.setObjectName("fieldInlineLabel")
         self.samRowLayout.addWidget(self.promptLabel)
