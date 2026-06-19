@@ -1291,7 +1291,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             current_index = self.annotationToolBox.currentIndex()
             for key, (widget, toolbox_index, _mode, title) in self._annotation_group_config().items():
                 rendered_count = self._render_annotation_group(widget, grouped_shapes[key])
-                self.annotationToolBox.setItemText(toolbox_index, f"{title} ({rendered_count})")
+                self.annotationToolBox.setTabText(toolbox_index, f"{title} ({rendered_count})")
                 if rendered_count > 0:
                     if first_non_empty_index is None:
                         first_non_empty_index = toolbox_index
