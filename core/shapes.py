@@ -69,6 +69,7 @@ class BaseShape:
     hover_fill_alpha = 120
     breathing_enabled = True
     breathing_alpha = 50
+    breathing_active_label = None
 
     def _shape_color(self):
         return resolve_shape_color(self, getattr(self, 'label', ''))
@@ -76,7 +77,11 @@ class BaseShape:
     def _fill_alpha(self):
         if getattr(self, '_hovered', False):
             return self.hover_fill_alpha
-        if self.breathing_enabled and not getattr(self, 'is_temp', False):
+        if (
+            self.breathing_enabled
+            and not getattr(self, 'is_temp', False)
+            and getattr(self, 'label', '') == self.breathing_active_label
+        ):
             return self.breathing_alpha
         return self.fill_alpha
 

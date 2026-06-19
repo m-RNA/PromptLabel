@@ -205,8 +205,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.max_history_steps = 20
         self.scene.state_changed.connect(self.push_state)
         self._breathing_phase = 0.0
+        self._breathing_label_index = 0
+        self._breathing_label_switch_elapsed = 0
+        self._breathing_label_switch_ms = 900
         self._breathing_timer = QTimer(self)
-        self._breathing_timer.setInterval(60)
+        self._breathing_timer.setInterval(40)
         self._breathing_timer.timeout.connect(self._tick_breathing_highlight)
 
         self._connect_signals()
@@ -291,20 +294,50 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.breathing_highlight_enabled = bool(enabled)
         BaseShape.breathing_enabled = self.breathing_highlight_enabled
         if self.breathing_highlight_enabled:
+            self._breathing_phase = 0.0
+            self._breathing_label_switch_elapsed = 0
+            self._update_breathing_active_label()
             if not self._breathing_timer.isActive():
                 self._breathing_timer.start()
         else:
             self._breathing_timer.stop()
             BaseShape.breathing_alpha = BaseShape.fill_alpha
+            BaseShape.breathing_active_label = None
             self._refresh_breathing_highlight()
         if persist:
             self.settings.setValue("breathing_highlight", self.breathing_highlight_enabled)
 
     def _tick_breathing_highlight(self):
-        self._breathing_phase = (self._breathing_phase + 0.16) % (math.pi * 2)
+        self._breathing_label_switch_elapsed += self._breathing_timer.interval()
+        if self._breathing_label_switch_elapsed >= self._breathing_label_switch_ms:
+            self._breathing_label_switch_elapsed = 0
+            self._breathing_label_index += 1
+            self._breathing_phase = 0.0
+        self._update_breathing_active_label()
+        self._breathing_phase = (self._breathing_phase + 0.32) % (math.pi * 2)
         wave = (math.sin(self._breathing_phase) + 1.0) / 2.0
-        BaseShape.breathing_alpha = int(BaseShape.fill_alpha + wave * 60)
+        BaseShape.breathing_alpha = int(12 + wave * 138)
         self._refresh_breathing_highlight()
+
+    def _breathing_labels_in_scene(self):
+        labels_in_scene = []
+        for item in self.scene.items():
+            if isinstance(item, (RectShape, PolyShape, RotatedRectShape)):
+                label = getattr(item, "label", "")
+                if label and label not in labels_in_scene:
+                    labels_in_scene.append(label)
+        labels = [label for label in self.class_list if label in labels_in_scene]
+        labels.extend(label for label in labels_in_scene if label not in labels)
+        return labels
+
+    def _update_breathing_active_label(self):
+        labels = self._breathing_labels_in_scene()
+        if not labels:
+            BaseShape.breathing_active_label = None
+            self._breathing_label_index = 0
+            return
+        self._breathing_label_index %= len(labels)
+        BaseShape.breathing_active_label = labels[self._breathing_label_index]
 
     def _refresh_breathing_highlight(self):
         if not hasattr(self, "scene") or self.scene is None:
@@ -814,9 +847,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         qss_path = os.path.join(RESOURCE_DIR, "ui", filename)
         try:
             with open(qss_path, "r", encoding="utf-8") as f:
-                return f.read()
+                qss = f.read()
         except OSError:
             return ""
+        ui_resource_dir = os.path.join(RESOURCE_DIR, "ui").replace("\\", "/")
+        return qss.replace("url(ui/", f"url({ui_resource_dir}/")
 
     def _resolved_system_theme(self):
         app = QApplication.instance()
