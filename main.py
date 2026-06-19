@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
     QPushButton, QHBoxLayout, QTreeWidgetItem
 )
-from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer
+from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer, QEvent
 from PySide6.QtGui import (
     QPolygonF, QColor, QBrush, QPixmap, QIcon, QPalette, QCursor, QPainter, QPen,
     QShortcut, QKeySequence, QDesktopServices
@@ -217,6 +217,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._update_file_grid_metrics()
         QTimer.singleShot(0, self._update_file_grid_metrics)
         self._setup_shortcuts()
+        QApplication.instance().installEventFilter(self)
         self.formatWidget.set_format(self.current_format)
         self.themeWidget.set_theme(self.current_theme)
         self.actionBreathingHighlight.setChecked(self.breathing_highlight_enabled)
@@ -384,6 +385,39 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _text_input_has_focus(self):
         widget = QApplication.focusWidget()
         return isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit))
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.KeyPress and self._handle_history_shortcut_event(event):
+            return True
+        return super().eventFilter(watched, event)
+
+    def _handle_history_shortcut_event(self, event):
+        active_window = QApplication.activeWindow()
+        if active_window is not self:
+            return False
+
+        modifiers = event.modifiers()
+        if not (modifiers & Qt.ControlModifier):
+            return False
+
+        key = event.key()
+        if key == Qt.Key_Z:
+            if modifiers & Qt.ShiftModifier:
+                self.redo()
+            elif self.scene.mode == CanvasMode.POLY and not self.scene.sam_enabled and len(self.scene.poly_pts) > 0:
+                self.scene.poly_pts.pop()
+                self.scene.update_temp_poly()
+            else:
+                self.undo()
+            event.accept()
+            return True
+
+        if key == Qt.Key_Y:
+            self.redo()
+            event.accept()
+            return True
+
+        return False
 
     def set_label_by_index(self, index):
         if 0 <= index < len(self.class_list):
