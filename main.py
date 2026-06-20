@@ -568,6 +568,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionBreathingHighlight.setChecked(self.breathing_highlight_enabled)
         self.set_breathing_highlight_enabled(self.breathing_highlight_enabled, persist=False)
         self._update_panel_toggle_actions()
+        self._update_history_actions()
         self._update_sam_switch_text()
         self._set_mode(CanvasMode.RECT)
         self._connect_system_theme_signal()
@@ -579,6 +580,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _connect_signals(self):
         self.actionOpen.triggered.connect(self.open_dir)
         self.actionSave.triggered.connect(lambda checked=False: self.save_annotation(self.current_format))
+        self.actionUndo.triggered.connect(self.undo)
+        self.actionRedo.triggered.connect(self.redo)
         self.actionBreathingHighlight.toggled.connect(self.set_breathing_highlight_enabled)
 
         self.formatWidget.format_changed.connect(self.set_current_format)
@@ -670,6 +673,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionBreathingHighlight.setToolTip(
             "当前已启用，点击关闭" if self.breathing_highlight_enabled else "当前已关闭，点击启用"
         )
+
+    def _update_history_actions(self):
+        if hasattr(self, "actionUndo"):
+            self.actionUndo.setEnabled(len(self.undo_stack) > 1)
+        if hasattr(self, "actionRedo"):
+            self.actionRedo.setEnabled(bool(self.redo_stack))
 
     def _update_panel_toggle_actions(self):
         sizes = self.splitter.sizes()
@@ -2355,6 +2364,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # 一旦有新操作，重做（前进）堆栈必须清空
         self.redo_stack.clear()
+        self._update_history_actions()
 
     def undo(self):
         """撤销 (Ctrl+Z)"""
@@ -2369,6 +2379,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.restore_state(previous_state)
             finally:
                 self.history_suspended = False
+        self._update_history_actions()
 
     def redo(self):
         """重做/前进 (Ctrl+Y 或 Ctrl+Shift+Z)"""
@@ -2382,6 +2393,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.restore_state(next_state)
             finally:
                 self.history_suspended = False
+        self._update_history_actions()
 
     def restore_state(self, state):
         """根据快照数据，完全重建画板元素"""

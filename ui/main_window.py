@@ -26,6 +26,8 @@ class ToolbarIconSet:
         "pulse": "pulse.svg",
         "panel_left": "panel-left.svg",
         "panel_right": "panel-right.svg",
+        "undo": "undo.svg",
+        "redo": "redo.svg",
         "help": "help.svg",
         "dataset": "dataset.svg",
         "visible": "eye.svg",
@@ -33,7 +35,7 @@ class ToolbarIconSet:
         "system": "system.svg",
         "light": "sun.svg",
         "dark": "moon.svg",
-        "sam": "sam.svg",
+        "sam": "brain.svg",
         "send": "send.svg",
         "search": "search.svg",
         "format": "format.svg",
@@ -287,6 +289,10 @@ class Ui_MainWindow(object):
         self.actionOpen.setToolTip("打开图片目录")
         self.actionSave = QAction("保存", MainWindow)
         self.actionSave.setToolTip("保存当前标注")
+        self.actionUndo = QAction("撤销", MainWindow)
+        self.actionUndo.setToolTip("撤销 (Ctrl+Z)")
+        self.actionRedo = QAction("重做", MainWindow)
+        self.actionRedo.setToolTip("重做 (Ctrl+Y / Ctrl+Shift+Z)")
         self.actionRect = QAction("矩形", MainWindow)
         self.actionRect.setToolTip("矩形标注 (B)")
         self.actionPoly = QAction("多边形", MainWindow)
@@ -316,6 +322,8 @@ class Ui_MainWindow(object):
 
         self.toolBar.addAction(self.actionOpen)
         self.toolBar.addAction(self.actionSave)
+        self.toolBar.addAction(self.actionUndo)
+        self.toolBar.addAction(self.actionRedo)
         self.toolBar.addSeparator()
         self.toolBar.addAction(self.actionRect)
         self.toolBar.addAction(self.actionPoly)
@@ -485,6 +493,8 @@ class Ui_MainWindow(object):
         self.icons.clear_cache()
         self.actionOpen.setIcon(self.icons.icon("open"))
         self.actionSave.setIcon(self.icons.icon("save"))
+        self.actionUndo.setIcon(self.icons.icon("undo"))
+        self.actionRedo.setIcon(self.icons.icon("redo"))
         self.actionRect.setIcon(self.icons.icon("rect"))
         self.actionPoly.setIcon(self.icons.icon("poly"))
         self.actionPoint.setIcon(self.icons.icon("point"))
