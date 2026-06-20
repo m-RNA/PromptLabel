@@ -487,10 +487,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.batchPromptProgress = QProgressBar()
         self.batchPromptProgress.setObjectName("batchPromptProgress")
-        self.batchPromptProgress.setFixedWidth(560)
+        self.batchPromptProgress.setMinimumWidth(360)
+        self.batchPromptProgress.setMaximumWidth(720)
         self.batchPromptProgress.setTextVisible(True)
         self.batchPromptProgress.setVisible(False)
-        self.statusBar.addWidget(self.batchPromptProgress)
+        self.statusBar.addWidget(self.batchPromptProgress, 1)
 
         self.sam_client = SAMClient(self)
         self.sam_client.inference_result.connect(self.scene.handle_sam_result)
@@ -2426,6 +2427,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.batch_prompt_failed = 0
         self._cancel_pending_sam_analysis()
         self._update_batch_prompt_progress(0)
+        self._set_status("批量智能标注中...", "orange")
         self.samPromptBtn.setEnabled(False)
         self.samSwitch.setChecked(True)
         self._process_next_batch_prompt_task()
@@ -2465,9 +2467,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         task = self.batch_prompt_queue.pop(0)
         self.active_batch_prompt_task = task
         image_path = task["image_path"]
-        step = self.batch_prompt_completed + 1
         self._update_batch_prompt_progress(self.batch_prompt_completed)
-        self._set_status(f"批量智能标注中：{step}/{self.batch_prompt_total}", "orange")
         QApplication.processEvents()
 
         if not os.path.exists(image_path):
