@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
-    QPushButton, QHBoxLayout, QTreeWidgetItem, QAbstractSpinBox, QSplashScreen
+    QPushButton, QHBoxLayout, QTreeWidgetItem, QAbstractSpinBox, QSplashScreen,
+    QProgressBar, QStyledItemDelegate, QStyle
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer, QEvent
 from PySide6.QtGui import (
@@ -341,6 +342,76 @@ class LabelEditDialog(QDialog):
         self.move(x, y)
 
 
+class FileQueueItemDelegate(QStyledItemDelegate):
+    def _thumbnail_rect(self, option):
+        widget = option.widget
+        icon_size = widget.iconSize() if widget else option.decorationSize
+        icon_width = max(1, icon_size.width())
+        icon_height = max(1, icon_size.height())
+        x = option.rect.left() + max(0, (option.rect.width() - icon_width) // 2)
+        y = option.rect.top() + 6
+        return QRectF(x, y, icon_width, icon_height)
+
+    def checkbox_rect(self, option):
+        thumb_rect = self._thumbnail_rect(option)
+        size = 22
+        return QRectF(thumb_rect.left() + 7, thumb_rect.top() + 7, size, size)
+
+    def paint(self, painter, option, index):
+        painter.save()
+        rect = QRectF(option.rect).adjusted(2, 2, -2, -2)
+        checked = index.data(Qt.CheckStateRole) == Qt.Checked
+        selected = bool(option.state & QStyle.State_Selected)
+
+        if checked or selected:
+            bg_color = QColor("#dbeafe") if checked else QColor("#e5e7eb")
+            border_color = QColor("#2563eb") if checked else QColor("#94a3b8")
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setPen(QPen(border_color, 1.5))
+            painter.setBrush(QBrush(bg_color))
+            painter.drawRoundedRect(rect, 6, 6)
+
+        thumb_rect = self._thumbnail_rect(option)
+        icon = index.data(Qt.DecorationRole)
+        if isinstance(icon, QIcon) and not icon.isNull():
+            pixmap = icon.pixmap(int(thumb_rect.width()), int(thumb_rect.height()))
+            painter.drawPixmap(thumb_rect.toRect(), pixmap)
+
+        check_rect = self.checkbox_rect(option)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(QPen(QColor("#ffffff"), 1.5))
+        painter.setBrush(QBrush(QColor(17, 24, 39, 185)))
+        painter.drawRoundedRect(check_rect, 4, 4)
+        if checked:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(QColor("#2563eb")))
+            painter.drawRoundedRect(check_rect.adjusted(2, 2, -2, -2), 3, 3)
+            painter.setPen(QPen(QColor("#ffffff"), 2.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            x = check_rect.left()
+            y = check_rect.top()
+            painter.drawLine(QPointF(x + 6, y + 12), QPointF(x + 10, y + 16))
+            painter.drawLine(QPointF(x + 10, y + 16), QPointF(x + 17, y + 7))
+
+        text = index.data(Qt.DisplayRole) or ""
+        text_rect = QRectF(
+            option.rect.left() + 4,
+            thumb_rect.bottom() + 6,
+            option.rect.width() - 8,
+            option.rect.bottom() - thumb_rect.bottom() - 6,
+        )
+        painter.setPen(QColor("#111827") if checked or selected else option.palette.text().color())
+        metrics = painter.fontMetrics()
+        line = metrics.elidedText(text, Qt.ElideMiddle, int(text_rect.width()))
+        painter.drawText(text_rect, Qt.AlignHCenter | Qt.AlignTop, line)
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        widget = option.widget
+        if widget:
+            return widget.gridSize()
+        return super().sizeHint(option, index)
+
+
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
@@ -348,6 +419,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.scene = Canvas(self)
         self.view.setScene(self.scene)
+        self.fileQueueDelegate = FileQueueItemDelegate(self.listFiles)
+        self.listFiles.setItemDelegate(self.fileQueueDelegate)
 
         self.current_image_path = None
         self.current_dir = None
@@ -362,6 +435,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.batch_prompt_completed = 0
         self.batch_prompt_added = 0
         self.batch_prompt_failed = 0
+        self._file_queue_check_anchor_row = -1
         self.settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
         self.current_format = self.settings.value("last_format", "yolo", str)
         if self.current_format not in ("json", "yolo", "xml"):
@@ -391,6 +465,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.statusBar.addWidget(self.helpLabel)
         self.activeLabelIndicator = QLabel("当前标签: 未选择")
         self.statusBar.addPermanentWidget(self.activeLabelIndicator)
+
+        self.batchPromptProgress = QProgressBar()
+        self.batchPromptProgress.setObjectName("batchPromptProgress")
+        self.batchPromptProgress.setFixedWidth(190)
+        self.batchPromptProgress.setTextVisible(True)
+        self.batchPromptProgress.setVisible(False)
+        self.statusBar.addPermanentWidget(self.batchPromptProgress)
 
         self.sam_client = SAMClient(self)
         self.sam_client.inference_result.connect(self.scene.handle_sam_result)
@@ -643,6 +724,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         return False
 
     def eventFilter(self, watched, event):
+        if watched is self.listFiles.viewport() and event.type() == QEvent.MouseButtonPress:
+            if self._handle_file_queue_mouse_press(event):
+                return True
+        if event.type() == QEvent.KeyPress and self._handle_file_queue_key_press(event):
+            return True
         if event.type() == QEvent.Wheel and self._handle_sam_label_combo_wheel(watched, event):
             return True
         if event.type() in (QEvent.ShortcutOverride, QEvent.KeyPress) and self._handle_global_shortcut_event(event):
@@ -1032,8 +1118,110 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     paths.append(os.path.abspath(path))
         return paths
 
+    def _file_queue_event_pos(self, event):
+        if hasattr(event, "position"):
+            return event.position().toPoint()
+        return event.pos()
+
+    def _file_queue_checkbox_rect_for_item(self, item):
+        item_rect = self.listFiles.visualItemRect(item)
+        icon_size = self.listFiles.iconSize()
+        icon_x = item_rect.left() + max(0, (item_rect.width() - icon_size.width()) // 2)
+        icon_y = item_rect.top() + 6
+        return QRectF(icon_x + 7, icon_y + 7, 22, 22)
+
+    def _set_file_item_checked(self, item, checked):
+        if not item:
+            return
+        item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+        self.listFiles.viewport().update(self.listFiles.visualItemRect(item))
+
+    def _set_file_range_checked(self, start_row, end_row, checked):
+        if self.listFiles.count() == 0:
+            return
+        first = max(0, min(start_row, end_row))
+        last = min(self.listFiles.count() - 1, max(start_row, end_row))
+        self.listFiles.blockSignals(True)
+        try:
+            for row in range(first, last + 1):
+                self._set_file_item_checked(self.listFiles.item(row), checked)
+        finally:
+            self.listFiles.blockSignals(False)
+        self.update_file_queue_title()
+        self.listFiles.viewport().update()
+
+    def _handle_file_queue_mouse_press(self, event):
+        if event.button() != Qt.LeftButton:
+            return False
+        pos = self._file_queue_event_pos(event)
+        item = self.listFiles.itemAt(pos)
+        if not item:
+            return False
+
+        row = self.listFiles.row(item)
+        modifiers = event.modifiers()
+        checkbox_hit = self._file_queue_checkbox_rect_for_item(item).contains(QPointF(pos))
+
+        if modifiers & Qt.ShiftModifier:
+            anchor = self._file_queue_check_anchor_row
+            if anchor < 0 or anchor >= self.listFiles.count():
+                anchor = self.listFiles.currentRow() if self.listFiles.currentRow() >= 0 else row
+            should_check = item.checkState() != Qt.Checked
+            self._set_file_range_checked(anchor, row, should_check)
+            self._file_queue_check_anchor_row = anchor
+            return True
+
+        if (modifiers & Qt.ControlModifier) or checkbox_hit:
+            self._set_file_item_checked(item, item.checkState() != Qt.Checked)
+            self._file_queue_check_anchor_row = row
+            self.update_file_queue_title()
+            return True
+
+        self._file_queue_check_anchor_row = row
+        return False
+
+    def _handle_file_queue_key_press(self, event):
+        focused = QApplication.focusWidget()
+        if focused not in (self.listFiles, self.listFiles.viewport()):
+            return False
+        if self.listFiles.count() == 0:
+            return False
+
+        key = event.key()
+        modifiers = event.modifiers()
+        current_row = self.listFiles.currentRow()
+        if current_row < 0:
+            current_row = 0
+            self.listFiles.setCurrentRow(current_row)
+
+        if key == Qt.Key_A and modifiers == Qt.ControlModifier:
+            self._set_file_range_checked(0, self.listFiles.count() - 1, True)
+            self._file_queue_check_anchor_row = current_row
+            return True
+
+        if key == Qt.Key_Space and (modifiers == Qt.NoModifier or modifiers == Qt.ControlModifier):
+            item = self.listFiles.item(current_row)
+            self._set_file_item_checked(item, item.checkState() != Qt.Checked)
+            self._file_queue_check_anchor_row = current_row
+            self.update_file_queue_title()
+            return True
+
+        if modifiers == Qt.ShiftModifier and key in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right):
+            step = -1 if key in (Qt.Key_Up, Qt.Key_Left) else 1
+            target_row = max(0, min(self.listFiles.count() - 1, current_row + step))
+            anchor = self._file_queue_check_anchor_row
+            if anchor < 0 or anchor >= self.listFiles.count():
+                anchor = current_row
+            self.listFiles.setCurrentRow(target_row)
+            self._set_file_range_checked(anchor, target_row, True)
+            self._file_queue_check_anchor_row = anchor
+            return True
+
+        return False
+
     def on_file_queue_item_changed(self, item):
         self.update_file_queue_title()
+        self.listFiles.viewport().update(self.listFiles.visualItemRect(item))
 
     def update_file_queue_title(self):
         if not hasattr(self, "fileTitle"):
@@ -2200,15 +2388,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.batch_prompt_added = 0
         self.batch_prompt_failed = 0
         self._cancel_pending_sam_analysis()
+        self._update_batch_prompt_progress(0)
         self.samPromptBtn.setEnabled(False)
         self.samSwitch.setChecked(True)
         self._process_next_batch_prompt_task()
+
+    def _update_batch_prompt_progress(self, value=None):
+        if not hasattr(self, "batchPromptProgress"):
+            return
+        total = max(0, self.batch_prompt_total)
+        if total <= 0:
+            self.batchPromptProgress.setVisible(False)
+            return
+        current = self.batch_prompt_completed if value is None else value
+        current = max(0, min(total, current))
+        self.batchPromptProgress.setRange(0, total)
+        self.batchPromptProgress.setValue(current)
+        self.batchPromptProgress.setFormat(f"批量 {current}/{total}")
+        self.batchPromptProgress.setVisible(True)
 
     def _process_next_batch_prompt_task(self):
         if not self.batch_prompt_queue:
             total = self.batch_prompt_total
             added = self.batch_prompt_added
             failed = self.batch_prompt_failed
+            self._update_batch_prompt_progress(total)
             self.active_batch_prompt_task = None
             self.batch_prompt_total = 0
             self.batch_prompt_completed = 0
@@ -2216,6 +2420,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.batch_prompt_failed = 0
             self.apply_sam_control_availability()
             self._set_status(f"批量智能标注完成：{total} 张图片，新增 {added} 个标注，失败 {failed} 张", "green" if failed == 0 else "orange")
+            QTimer.singleShot(2400, self._update_batch_prompt_progress)
             if self.current_image_path:
                 self._schedule_current_image_sam_analysis(delay_ms=0)
             return
@@ -2224,6 +2429,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.active_batch_prompt_task = task
         image_path = task["image_path"]
         step = self.batch_prompt_completed + 1
+        self._update_batch_prompt_progress(self.batch_prompt_completed)
         self._set_status(f"批量智能标注中：{step}/{self.batch_prompt_total} - {os.path.basename(image_path)}", "orange")
         QApplication.processEvents()
 
@@ -2253,6 +2459,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.batch_prompt_failed += 1
         else:
             self.batch_prompt_added += added_count
+        self._update_batch_prompt_progress(self.batch_prompt_completed)
         self.active_batch_prompt_task = None
         QTimer.singleShot(0, self._process_next_batch_prompt_task)
 
@@ -3259,6 +3466,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if current:
             path = current.data(Qt.UserRole) or current.text()
+            self._file_queue_check_anchor_row = self.listFiles.row(current)
             if self._is_batch_prompt_running():
                 self.pending_prompt_targets = {
                     key: value
