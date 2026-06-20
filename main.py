@@ -20,7 +20,6 @@ RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
 BASE_DIR = APP_DIR
 SETTINGS_PATH = os.path.join(BASE_DIR, "PromptLabel.ini")
 APP_NAME = "PromptLabel"
-APP_ICON_PATH = os.path.join(RESOURCE_DIR, "assets", "promptlabel_pl.png")
 DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
 SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
 SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
@@ -30,6 +29,9 @@ _STARTUP_APP = None
 _STARTUP_SPLASH = None
 _STARTUP_ICON = None
 APP_UI_FONT_FAMILY = "Microsoft YaHei UI"
+APP_ICON_PNG_PATH = os.path.join(RESOURCE_DIR, "assets", "promptlabel_pl.png")
+APP_ICON_ICO_PATH = os.path.join(RESOURCE_DIR, "assets", "promptlabel_pl.ico")
+_WINDOWS_ICON_HANDLES = []
 
 
 def _set_windows_app_user_model_id():
@@ -69,9 +71,53 @@ def _create_fallback_icon(size=118):
 
 
 def _load_app_icon():
-    if os.path.exists(APP_ICON_PATH):
-        return QIcon(APP_ICON_PATH)
-    return QIcon(_create_fallback_icon())
+    icon = QIcon()
+    if os.path.exists(APP_ICON_ICO_PATH):
+        icon = QIcon(APP_ICON_ICO_PATH)
+    if icon.isNull() and os.path.exists(APP_ICON_PNG_PATH):
+        icon = QIcon(APP_ICON_PNG_PATH)
+    if icon.isNull():
+        icon = QIcon(_create_fallback_icon())
+    return icon
+
+
+def _apply_windows_window_icon(widget):
+    if sys.platform != "win32" or not os.path.exists(APP_ICON_ICO_PATH):
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        hwnd = int(widget.winId())
+        user32 = ctypes.windll.user32
+        load_image = user32.LoadImageW
+        load_image.argtypes = [
+            wintypes.HINSTANCE,
+            wintypes.LPCWSTR,
+            wintypes.UINT,
+            ctypes.c_int,
+            ctypes.c_int,
+            wintypes.UINT,
+        ]
+        load_image.restype = wintypes.HANDLE
+        user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user32.SendMessageW.restype = wintypes.LPARAM
+        lr_loadfromfile = 0x00000010
+        image_icon = 1
+        wm_seticon = 0x0080
+        icon_small = 0
+        icon_big = 1
+
+        small_icon = load_image(None, APP_ICON_ICO_PATH, image_icon, 16, 16, lr_loadfromfile)
+        big_icon = load_image(None, APP_ICON_ICO_PATH, image_icon, 32, 32, lr_loadfromfile)
+        if small_icon:
+            user32.SendMessageW(hwnd, wm_seticon, icon_small, small_icon)
+            _WINDOWS_ICON_HANDLES.append(small_icon)
+        if big_icon:
+            user32.SendMessageW(hwnd, wm_seticon, icon_big, big_icon)
+            _WINDOWS_ICON_HANDLES.append(big_icon)
+    except Exception:
+        pass
 
 
 def _read_startup_theme_key():
@@ -122,7 +168,7 @@ def _create_startup_splash_pixmap(resolved_theme=None):
     painter.setPen(QPen(border_color, 1))
     painter.drawPath(frame_path)
 
-    icon_pixmap = QPixmap(APP_ICON_PATH) if os.path.exists(APP_ICON_PATH) else _create_fallback_icon()
+    icon_pixmap = QPixmap(APP_ICON_PNG_PATH) if os.path.exists(APP_ICON_PNG_PATH) else _create_fallback_icon()
     icon_size = 120
     icon_pixmap = icon_pixmap.scaled(icon_size, icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
     icon_x = (width - icon_pixmap.width()) // 2
@@ -151,8 +197,12 @@ def _show_startup_splash():
 
     resolved_theme = _resolved_startup_theme(_read_startup_theme_key())
     _STARTUP_SPLASH = QSplashScreen(_create_startup_splash_pixmap(resolved_theme))
+    if not _STARTUP_ICON.isNull():
+        _STARTUP_SPLASH.setWindowIcon(_STARTUP_ICON)
     _STARTUP_SPLASH.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+    _apply_windows_window_icon(_STARTUP_SPLASH)
     _STARTUP_SPLASH.show()
+    _apply_windows_window_icon(_STARTUP_SPLASH)
     _STARTUP_APP.processEvents()
 
 
@@ -3112,14 +3162,20 @@ if __name__ == "__main__":
     splash = _STARTUP_SPLASH
     if splash is None:
         splash = QSplashScreen(_create_startup_splash_pixmap())
+        if not app_icon.isNull():
+            splash.setWindowIcon(app_icon)
         splash.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        _apply_windows_window_icon(splash)
         splash.show()
+        _apply_windows_window_icon(splash)
         app.processEvents()
 
     window = MainWindow()
     if not app_icon.isNull():
         window.setWindowIcon(app_icon)
+    _apply_windows_window_icon(window)
     window.show()
+    _apply_windows_window_icon(window)
     app.processEvents()
     QTimer.singleShot(260, lambda: splash.finish(window))
     sys.exit(app.exec())

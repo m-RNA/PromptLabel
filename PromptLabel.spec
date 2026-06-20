@@ -7,6 +7,7 @@ from pathlib import Path
 block_cipher = None
 
 datas = [
+    ("assets/promptlabel_pl.ico", "assets"),
     ("assets/promptlabel_pl.png", "assets"),
     ("ui/*.qss", "ui"),
     ("ui/*.png", "ui"),
