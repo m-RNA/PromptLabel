@@ -310,6 +310,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.current_format = self.settings.value("last_format", "yolo", str)
         if self.current_format not in ("json", "yolo", "xml"):
             self.current_format = "yolo"
+        self._format_changed_by_user = False
         self.current_theme = self.settings.value("theme", "system", str)
         self.breathing_highlight_enabled = self._settings_bool("breathing_highlight", True)
         self.active_label = self.settings.value("active_label", "", str)
