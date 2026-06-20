@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import math
+import subprocess
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
@@ -1148,6 +1149,41 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     paths.append(os.path.abspath(path))
         return paths
 
+    def checked_file_items(self):
+        return [
+            self.listFiles.item(index)
+            for index in range(self.listFiles.count())
+            if self.listFiles.item(index).checkState() == Qt.Checked
+        ]
+
+    def _file_item_path(self, item):
+        return item.data(Qt.UserRole) if item else ""
+
+    def _file_item_name(self, item):
+        image_path = self._file_item_path(item)
+        return item.data(Qt.UserRole + 1) or os.path.basename(image_path)
+
+    def _context_file_items_for_item(self, item):
+        checked_items = self.checked_file_items()
+        item_path = os.path.abspath(self._file_item_path(item))
+        checked_paths = {os.path.abspath(self._file_item_path(checked_item)) for checked_item in checked_items}
+        if item_path in checked_paths:
+            return checked_items
+        self._set_single_checked_file_item(item)
+        return [item]
+
+    def open_image_location_selected(self, image_path):
+        if not image_path:
+            return
+        normalized_path = os.path.abspath(image_path)
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer.exe", f"/select,{normalized_path}"])
+            else:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(normalized_path)))
+        except Exception as e:
+            self._notify(f"打开所在位置失败: {e}", "danger")
+
     def _file_queue_event_pos(self, event):
         if hasattr(event, "position"):
             return event.position().toPoint()
@@ -2033,6 +2069,144 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.scene.img_item = None
             self.update_annotation_panel()
         self._notify(f"已删除图片：{file_name}", "success")
+
+    def show_file_list_context_menu(self, pos):
+        item = self.listFiles.itemAt(pos)
+        if not item:
+            return
+
+        target_items = self._context_file_items_for_item(item)
+        target_count = len(target_items)
+        self._file_queue_preserve_multi_selection_once = True
+        self.listFiles.setCurrentItem(item)
+        self._file_queue_preserve_multi_selection_once = False
+
+        image_path = self._file_item_path(item)
+        file_name = self._file_item_name(item)
+
+        menu = QMenu(self)
+        copy_action = menu.addAction("复制文件名" if target_count == 1 else f"复制 {target_count} 个文件名")
+        open_location_action = menu.addAction("打开所在位置并选中图片")
+        delete_action = menu.addAction("删除图片" if target_count == 1 else f"删除 {target_count} 张图片")
+        action = menu.exec(self.listFiles.mapToGlobal(pos))
+
+        if action == copy_action:
+            file_names = [self._file_item_name(target_item) for target_item in target_items]
+            QApplication.clipboard().setText("\n".join(file_names))
+            if len(file_names) == 1:
+                self._notify(f"已复制文件名：{file_name}", "success")
+            else:
+                self._notify(f"已复制 {len(file_names)} 个文件名", "success")
+        elif action == open_location_action:
+            self.open_image_location_selected(image_path)
+        elif action == delete_action:
+            self.delete_image_items(target_items)
+
+    def delete_image_item(self, item):
+        self.delete_image_items([item])
+
+    def delete_image_items(self, items):
+        valid_items = []
+        seen_paths = set()
+        for item in items:
+            image_path = self._file_item_path(item)
+            if not image_path:
+                continue
+            normalized_path = os.path.abspath(image_path)
+            if normalized_path in seen_paths:
+                continue
+            seen_paths.add(normalized_path)
+            valid_items.append(item)
+
+        if not valid_items:
+            return
+
+        annotation_paths = []
+        for item in valid_items:
+            annotation_paths.extend(self.annotation_paths_for_image(self._file_item_path(item)))
+
+        if len(valid_items) == 1:
+            file_name = self._file_item_name(valid_items[0])
+            message = f"确定删除图片“{file_name}”吗？"
+            if annotation_paths:
+                message += "\n将同时删除同名标注文件。"
+        else:
+            message = f"确定删除 {len(valid_items)} 张图片吗？"
+            if annotation_paths:
+                message += f"\n将同时删除 {len(annotation_paths)} 个同名标注文件。"
+
+        reply = QMessageBox.question(
+            self,
+            "确认删除",
+            message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        current_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
+        current_image_removed = False
+        deleted_rows = []
+        deleted_count = 0
+        failed_count = 0
+
+        for item in valid_items:
+            image_path = self._file_item_path(item)
+            normalized_path = os.path.abspath(image_path)
+            try:
+                if current_path and current_path == normalized_path:
+                    self.auto_save_annotation()
+                    current_image_removed = True
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                for path in self.annotation_paths_for_image(image_path):
+                    if os.path.exists(path):
+                        os.remove(path)
+                row = self.listFiles.row(item)
+                if row >= 0:
+                    deleted_rows.append(row)
+                deleted_count += 1
+            except Exception as e:
+                failed_count += 1
+                print(f"删除图片失败: {image_path}: {e}")
+
+        for row in sorted(deleted_rows, reverse=True):
+            self.listFiles.takeItem(row)
+
+        self.update_file_queue_title()
+        self._file_queue_preserve_multi_selection_once = False
+        if current_image_removed:
+            self._select_file_after_delete(min(deleted_rows) if deleted_rows else 0)
+        elif self.listFiles.currentItem():
+            self._set_single_checked_file_item(self.listFiles.currentItem())
+        elif self.listFiles.count() > 0:
+            self.listFiles.setCurrentRow(0)
+        else:
+            self._clear_current_image_view()
+
+        if failed_count:
+            self._notify(f"已删除 {deleted_count} 张图片，{failed_count} 张删除失败", "warning")
+        elif deleted_count == 1:
+            self._notify("已删除图片", "success")
+        else:
+            self._notify(f"已删除 {deleted_count} 张图片", "success")
+
+    def _select_file_after_delete(self, preferred_row):
+        if self.listFiles.count() > 0:
+            next_row = min(max(0, preferred_row), self.listFiles.count() - 1)
+            self.listFiles.setCurrentRow(next_row)
+        else:
+            self._clear_current_image_view()
+
+    def _clear_current_image_view(self):
+        self.current_image_path = None
+        self._update_window_title()
+        self.scene.clear_shapes()
+        if self.scene.img_item:
+            self.scene.removeItem(self.scene.img_item)
+            self.scene.img_item = None
+        self.update_annotation_panel()
 
     def update_annotation_panel(self):
         previous_sync_state = self.annotation_item_syncing
