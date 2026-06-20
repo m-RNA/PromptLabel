@@ -187,7 +187,7 @@ class Ui_MainWindow(object):
         self.actionSave = QAction("保存", MainWindow)
         self.actionSave.setToolTip("保存当前标注")
         self.actionRect = QAction("矩形", MainWindow)
-        self.actionRect.setToolTip("矩形标注 (Ctrl+R)")
+        self.actionRect.setToolTip("矩形标注 (B)")
         self.actionPoly = QAction("多边形", MainWindow)
         self.actionPoly.setToolTip("多边形标注 (P)")
         self.actionPoint = QAction("点", MainWindow)

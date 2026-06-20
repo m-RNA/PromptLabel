@@ -414,7 +414,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("E", self.edit_selected_shape_label, False),
             ("F1", self.show_help_dialog, True),
             ("R", self.trigger_sam_prompt, False),
-            ("Ctrl+R", lambda: self._set_mode(CanvasMode.RECT), True),
+            ("B", lambda: self._set_mode(CanvasMode.RECT), False),
             ("P", lambda: self._set_mode(CanvasMode.POLY), False),
             ("T", lambda: self._set_mode(CanvasMode.POINT), False),
             ("O", lambda: self._set_mode(CanvasMode.RBOX), False),
@@ -466,9 +466,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         key = event.key()
         callback = None
 
-        if modifiers == Qt.ControlModifier and key == Qt.Key_R:
-            callback = lambda: self._set_mode(CanvasMode.RECT)
-        elif modifiers == Qt.NoModifier:
+        if modifiers == Qt.NoModifier:
             shortcut_map = {
                 Qt.Key_A: self.previous_image,
                 Qt.Key_Left: self.previous_image,
@@ -484,6 +482,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 Qt.Key_F: self.delete_selected_shapes,
                 Qt.Key_E: self.edit_selected_shape_label,
                 Qt.Key_R: self.trigger_sam_prompt,
+                Qt.Key_B: lambda: self._set_mode(CanvasMode.RECT),
                 Qt.Key_P: lambda: self._set_mode(CanvasMode.POLY),
                 Qt.Key_T: lambda: self._set_mode(CanvasMode.POINT),
                 Qt.Key_O: lambda: self._set_mode(CanvasMode.RBOX),
@@ -1991,7 +1990,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "↓ / S：选择下一个标注\n"
             "Q / Space：切换 SAM\n"
             "R：提交 SAM 提示词\n"
-            "Ctrl + R / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
+            "B / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
             "E：修改当前标注标签\n"
             "F / 0 / Delete / Backspace：删除当前标注\n"
             "F1：打开帮助\n\n"
@@ -2918,6 +2917,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif key == Qt.Key_F1:
             self.show_help_dialog()
         elif key == Qt.Key_R:
+            self.trigger_sam_prompt()
+        elif key == Qt.Key_B:
             self.actionRect.trigger()
         elif key == Qt.Key_P:
             self.actionPoly.trigger()
