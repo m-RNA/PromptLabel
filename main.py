@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
-    QPushButton, QHBoxLayout, QTreeWidgetItem
+    QPushButton, QHBoxLayout, QTreeWidgetItem, QAbstractSpinBox
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer, QEvent
 from PySide6.QtGui import (
@@ -439,7 +439,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _text_input_has_focus(self):
         widget = QApplication.focusWidget()
-        return isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit))
+        while widget is not None:
+            if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+                return True
+            if isinstance(widget, QComboBox) and widget.isEditable():
+                return True
+            widget = widget.parentWidget()
+        return False
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Wheel and self._handle_sam_label_combo_wheel(watched, event):
