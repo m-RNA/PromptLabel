@@ -413,7 +413,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("F", self.delete_selected_shapes, False),
             ("E", self.edit_selected_shape_label, False),
             ("F1", self.show_help_dialog, True),
-            ("R", lambda: self._set_mode(CanvasMode.RECT), False),
+            ("R", self.trigger_sam_prompt, False),
+            ("Ctrl+R", lambda: self._set_mode(CanvasMode.RECT), True),
             ("P", lambda: self._set_mode(CanvasMode.POLY), False),
             ("T", lambda: self._set_mode(CanvasMode.POINT), False),
             ("O", lambda: self._set_mode(CanvasMode.RBOX), False),
@@ -443,9 +444,59 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Wheel and self._handle_sam_label_combo_wheel(watched, event):
             return True
+        if event.type() in (QEvent.ShortcutOverride, QEvent.KeyPress) and self._handle_global_shortcut_event(event):
+            return True
         if event.type() == QEvent.KeyPress and self._handle_history_shortcut_event(event):
             return True
         return super().eventFilter(watched, event)
+
+    def _handle_global_shortcut_event(self, event):
+        if QApplication.activeWindow() is not self:
+            return False
+        if self._text_input_has_focus():
+            return False
+
+        modifiers = event.modifiers()
+        key = event.key()
+        callback = None
+
+        if modifiers == Qt.ControlModifier and key == Qt.Key_R:
+            callback = lambda: self._set_mode(CanvasMode.RECT)
+        elif modifiers == Qt.NoModifier:
+            shortcut_map = {
+                Qt.Key_A: self.previous_image,
+                Qt.Key_Left: self.previous_image,
+                Qt.Key_D: self.next_image,
+                Qt.Key_Right: self.next_image,
+                Qt.Key_W: lambda: self.select_adjacent_annotation(-1),
+                Qt.Key_Up: lambda: self.select_adjacent_annotation(-1),
+                Qt.Key_S: lambda: self.select_adjacent_annotation(1),
+                Qt.Key_Down: lambda: self.select_adjacent_annotation(1),
+                Qt.Key_Delete: self.delete_selected_shapes,
+                Qt.Key_Backspace: self.delete_selected_shapes,
+                Qt.Key_0: self.delete_selected_shapes,
+                Qt.Key_F: self.delete_selected_shapes,
+                Qt.Key_E: self.edit_selected_shape_label,
+                Qt.Key_R: self.trigger_sam_prompt,
+                Qt.Key_P: lambda: self._set_mode(CanvasMode.POLY),
+                Qt.Key_T: lambda: self._set_mode(CanvasMode.POINT),
+                Qt.Key_O: lambda: self._set_mode(CanvasMode.RBOX),
+                Qt.Key_Q: self.toggle_sam_shortcut,
+                Qt.Key_Space: self.toggle_sam_shortcut,
+                Qt.Key_F1: self.show_help_dialog,
+            }
+            callback = shortcut_map.get(key)
+            if callback is None and Qt.Key_1 <= key <= Qt.Key_9:
+                index = key - Qt.Key_1
+                callback = lambda idx=index: self.set_label_by_index(idx)
+
+        if callback is None:
+            return False
+
+        event.accept()
+        if event.type() == QEvent.KeyPress:
+            callback()
+        return True
 
     def _handle_sam_label_combo_wheel(self, watched, event):
         if not hasattr(self, "samLabelCombo"):
@@ -1364,6 +1415,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         sam_action_text = "关闭 SAM" if self.samSwitch.isChecked() else "打开 SAM"
         sam_action = menu.addAction(sam_action_text if self.samSwitch.isEnabled() else "SAM 不可用")
         sam_action.setEnabled(self.samSwitch.isEnabled())
+        submit_prompt_action = menu.addAction("提交 SAM 提示词 (R)")
+        submit_prompt_action.setEnabled(self.samPromptBtn.isEnabled() and self.scene.mode != CanvasMode.POINT)
         menu.addSeparator()
 
         selected_shapes = self._selected_annotation_shapes()
@@ -1396,6 +1449,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
         if chosen == sam_action:
             self.samSwitch.setChecked(not self.samSwitch.isChecked())
+            return
+        if chosen == submit_prompt_action:
+            self.trigger_sam_prompt()
             return
         if chosen == edit_selected_action:
             self.edit_shapes_label(selected_shapes)
@@ -1681,13 +1737,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._notify("点标注模式下不可使用 SAM 提示词提取", "warning")
             return
 
+        prompt = self.samPromptInput.currentText().strip()
+
         label = self.ensure_prompt_label()
         if not label:
             self._notify("请先选择或创建一个标签", "warning")
             return
 
-        prompt = self.samPromptInput.currentText().strip()
         if prompt:
+            self.samPromptInput.setEditText(prompt)
+            self.add_prompt_alias(label, prompt)
             image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
             if not image_path:
                 self._notify("请先打开图片", "warning")
@@ -1925,7 +1984,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "↑ / W：选择上一个标注\n"
             "↓ / S：选择下一个标注\n"
             "Q / Space：切换 SAM\n"
-            "R / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
+            "R：提交 SAM 提示词\n"
+            "Ctrl + R / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
             "E：修改当前标注标签\n"
             "F / 0 / Delete / Backspace：删除当前标注\n"
             "F1：打开帮助\n\n"
@@ -1935,7 +1995,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "标签下拉框滚动会切换当前标签\n"
             "多个提示词别名可对应同一个 YOLO 类别\n\n"
             "右键菜单：\n"
-            "画布右键可打开/关闭 SAM、切换当前标签、新建标签\n"
+            "画布右键可打开/关闭 SAM、提交 SAM 提示词、切换当前标签、新建标签\n"
             "鼠标位于已选标注上右键，可批量修改选中标注类别\n"
             "右侧标注列表右键可批量改类别或删除标注\n"
             "左侧图片队列右键可复制文件名、打开目录或删除图片及标注\n\n"
