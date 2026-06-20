@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import cv2
 import queue
+import warnings
 from PySide6.QtCore import QObject, QThread, Signal
 from PIL import Image
 
@@ -20,8 +21,15 @@ class ModelLoadWorker(QThread):
 
     def run(self):
         try:
-            from sam3.model_builder import build_sam3_image_model
-            from sam3.model.sam3_image_processor import Sam3Processor
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"Importing from timm\.models\.layers is deprecated.*",
+                    category=FutureWarning,
+                    module=r"timm\.models\.layers",
+                )
+                from sam3.model_builder import build_sam3_image_model
+                from sam3.model.sam3_image_processor import Sam3Processor
 
             model = build_sam3_image_model(checkpoint_path=self.checkpoint_path, enable_inst_interactivity=True)
             model.to("cuda")
