@@ -38,6 +38,7 @@ class Canvas(QGraphicsScene):
 
         # 智能悬停提示图层
         self.sam_hover_item = None
+        self.sam_hover_active = False
 
         self.h_line = QGraphicsLineItem()
         self.v_line = QGraphicsLineItem()
@@ -75,7 +76,12 @@ class Canvas(QGraphicsScene):
 
     def set_sam_enabled(self, enabled):
         self.sam_enabled = enabled
-        if not enabled and self.sam_hover_item:
+        if not enabled:
+            self.clear_sam_hover()
+
+    def clear_sam_hover(self):
+        self.sam_hover_active = False
+        if self.sam_hover_item:
             self.removeItem(self.sam_hover_item)
             self.sam_hover_item = None
 
@@ -138,12 +144,12 @@ class Canvas(QGraphicsScene):
         # 将 RBOX 加入 SAM 支持的模式列表
         if self.sam_enabled and self.is_inside_image(pt) and self.mode in [CanvasMode.RECT, CanvasMode.POLY,
                                                                            CanvasMode.RBOX]:
+            self.sam_hover_active = True
             if self.sam_client:
                 self.sam_client.request_inference(clamped_pt.x(), clamped_pt.y(), is_click=False)
             return
-        elif self.sam_hover_item:
-            self.removeItem(self.sam_hover_item)
-            self.sam_hover_item = None
+        elif self.sam_hover_item or self.sam_hover_active:
+            self.clear_sam_hover()
 
         # ---------------- 常规绘图 ----------------
         if self.drawing and self.start_pt:
@@ -174,9 +180,13 @@ class Canvas(QGraphicsScene):
         if not self.sam_enabled or self.mode not in [CanvasMode.RECT, CanvasMode.POLY, CanvasMode.RBOX]:
             return
 
-        if self.sam_hover_item:
-            self.removeItem(self.sam_hover_item)
-            self.sam_hover_item = None
+        if not is_click and not self.sam_hover_active:
+            return
+
+        old_hover_active = self.sam_hover_active
+        self.clear_sam_hover()
+        if not is_click:
+            self.sam_hover_active = old_hover_active
 
         if not poly_pts or not rect_xywh:
             return
@@ -193,6 +203,7 @@ class Canvas(QGraphicsScene):
                 self.sam_hover_item = QGraphicsRectItem(rect)
                 self.apply_preview_style(self.sam_hover_item)
                 self.addItem(self.sam_hover_item)
+                self.sam_hover_active = True
 
         elif self.mode == CanvasMode.POLY:
             qpts = [QPointF(p[0], p[1]) for p in poly_pts]
@@ -203,6 +214,7 @@ class Canvas(QGraphicsScene):
                 self.sam_hover_item = PolyShape(QPolygonF(qpts), is_temp=True)
                 self.apply_preview_style(self.sam_hover_item)
                 self.addItem(self.sam_hover_item)
+                self.sam_hover_active = True
 
         # SAM 的 OBB 旋转框处理分支
         elif self.mode == CanvasMode.RBOX:
@@ -216,6 +228,7 @@ class Canvas(QGraphicsScene):
                 self.sam_hover_item = RotatedRectShape(cx, cy, w, h, angle, is_temp=True)
                 self.apply_preview_style(self.sam_hover_item)
                 self.addItem(self.sam_hover_item)
+                self.sam_hover_active = True
 
     def mousePressEvent(self, event):
         pt = event.scenePos()
@@ -349,9 +362,7 @@ class Canvas(QGraphicsScene):
         if self.temp_item:
             self.removeItem(self.temp_item)
             self.temp_item = None
-        if self.sam_hover_item:
-            self.removeItem(self.sam_hover_item)
-            self.sam_hover_item = None
+        self.clear_sam_hover()
 
     def keyPressEvent(self, event):
         key = event.key()

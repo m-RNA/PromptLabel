@@ -173,6 +173,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pending_prompt_targets = {}
         self.settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
         self.current_format = self.settings.value("last_format", "yolo", str)
+        if self.current_format not in ("json", "yolo", "xml"):
+            self.current_format = "yolo"
         self.current_theme = self.settings.value("theme", "system", str)
         self.breathing_highlight_enabled = self._settings_bool("breathing_highlight", True)
         self.active_label = self.settings.value("active_label", "", str)
@@ -2218,6 +2220,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.active_label = cls_name
                 self.settings.setValue("active_label", self.active_label)
                 self.update_active_label_indicator()
+                self.refresh_label_combo()
                 self.refresh_prompt_combo()
                 self.samPromptInput.setEditText(prompt)
                 if self.breathing_highlight_enabled:
@@ -2688,8 +2691,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print(f"自动保存失败: {str(e)}")
 
     def set_current_format(self, format_type):
+        if format_type not in ("json", "yolo", "xml"):
+            return
         self.current_format = format_type
         self.settings.setValue("last_format", format_type)
+        self.settings.sync()
         self.formatWidget.set_format(format_type)
 
         if self.current_image_path:

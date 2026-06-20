@@ -153,6 +153,12 @@ class CanvasView(QGraphicsView):
             return
         super().mouseMoveEvent(event)
 
+    def leaveEvent(self, event):
+        scene = self.scene()
+        if scene is not None and hasattr(scene, "clear_sam_hover"):
+            scene.clear_sam_hover()
+        super().leaveEvent(event)
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MiddleButton:
             self._is_panning = False
