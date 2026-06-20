@@ -2899,52 +2899,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.push_state()
         self._set_status(f"参考查找完成，新增 {added} 个相似目标")
 
-    def _legacy_handle_text_results(self, results, prompt_text, image_path):
-        result_image_path = os.path.abspath(image_path) if image_path else ""
-        current_image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
-        pending_key = (prompt_text, result_image_path)
-        if result_image_path != current_image_path:
-            self.pending_prompt_targets.pop(pending_key, None)
-            return
-
-        target_label = self.pending_prompt_targets.pop(pending_key, self.active_label)
-        if target_label not in self.class_list:
-            self._set_status(f"提示词“{prompt_text}”已有结果，但没有可用的目标标签", "red")
-            self._notify("请先选择或创建一个标签，再使用提示词检索", "warning")
-            return
-
-        if not results:
-            self._set_status(f"提取完成：未发现与“{prompt_text}”相关的目标", "red")
-            return
-
-        self._set_status(f"提取完成：用提示词“{prompt_text}”找到 {len(results)} 个目标，已标注为“{target_label}”", "green")
-        self.add_prompt_alias(target_label, prompt_text)
-
-        def result_sort_key(res):
-            x, y, w, h = res.get("rect", [0, 0, 0, 0])
-            return (float(x), float(y))
-
-        for res in sorted(results, key=result_sort_key):
-            if self.scene.mode == CanvasMode.RECT:
-                x, y, w, h = res["rect"]
-                shape = RectShape(QRectF(x, y, w, h), target_label)
-            else:
-                qpts = [QPointF(p[0], p[1]) for p in res["poly_pts"]]
-                shape = PolyShape(QPolygonF(qpts), target_label)
-
-            self.scene.addItem(shape)
-            self._apply_shape_label_style(shape, target_label)
-            if hasattr(shape, 'update_label_text'):
-                shape.update_label_text(target_label)
-            if hasattr(shape, 'update_label_position'):
-                shape.update_label_position(shape)
-            if hasattr(shape, 'update_label_visibility'):
-                shape.update_label_visibility(shape, is_selected=False, is_hovered=False)
-
-        self.update_annotation_panel()
-        self.auto_save_annotation()
-        self.push_state()
-
     def handle_text_results(self, results, prompt_text, image_path):
         result_image_path = os.path.abspath(image_path) if image_path else ""
         current_image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
@@ -3005,46 +2959,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._set_status(f"提取完成：用提示词“{prompt_text}”找到 {len(results)} 个目标，已标注为“{target_label}”", "green")
         if is_batch:
             self._finish_batch_prompt_task(added_count, failed=added_count == 0)
-
-    def _legacy_show_help_dialog(self):
-        help_text = (
-            "快捷键：\n"
-            "A / D：上一张 / 下一张\n"
-            "← / →：上一张 / 下一张\n"
-            "Ctrl + Z：撤销\n"
-            "Ctrl + Y / Ctrl + Shift + Z：重做\n"
-            "Ctrl + A：选择当前标注类型分组内全部标注\n"
-            "1 - 9：切换当前标签\n"
-            "↑ / W：选择上一个标注\n"
-            "↓ / S：选择下一个标注\n"
-            "Q / Space：切换 SAM\n"
-            "R：提交 SAM 提示词\n"
-            "B / P / T / O：矩形 / 多边形 / 点 / 旋转框\n"
-            "E：修改当前标注标签\n"
-            "F / 0 / Delete / Backspace：删除当前标注\n"
-            "F1：打开帮助\n\n"
-            "提示词：\n"
-            "Enter 或“提交”按钮会提交提示词\n"
-            "在提示词下拉框滚动只切换历史提示词，不会提交\n"
-            "标签下拉框滚动会切换当前标签\n"
-            "多个提示词别名可对应同一个 YOLO 类别\n\n"
-            "右键菜单：\n"
-            "画布右键可打开/关闭 SAM、提交 SAM 提示词、切换当前标签、新建标签\n"
-            "鼠标位于已选标注上右键，可批量修改选中标注类别\n"
-            "右侧标注列表右键可批量改类别或删除标注\n"
-            "左侧图片队列右键可复制文件名、打开目录或删除图片及标注\n\n"
-            "标签和标注：\n"
-            "先在右侧选择当前标签，后续新标注直接使用该标签\n"
-            "状态栏显示当前标注模式下的总数和各类别数量\n"
-            "修改、删除、切图等操作会自动保存\n\n"
-            "SAM：\n"
-            "SAM 可用时默认打开，点标注模式下不可用\n"
-            "连续切换图片时，会在停止切换后再分析当前图片特征\n\n"
-            "参考查找：\n"
-            "先选中一个目标，再点“参考查找”\n"
-            "程序会在当前图片中查找相似目标并直接生成同标签标注"
-        )
-        QMessageBox.about(self, "PromptLabel 帮助", help_text)
 
     def show_help_dialog(self):
         help_text = (
