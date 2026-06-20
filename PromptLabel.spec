@@ -4,6 +4,16 @@ import fnmatch
 import importlib.util
 from pathlib import Path
 
+try:
+    import PySide6  # noqa: F401
+except ModuleNotFoundError as exc:
+    if exc.name == "PySide6":
+        raise SystemExit(
+            "当前 PyInstaller 使用的 Python 环境缺少 PySide6，不能生成可运行的 PromptLabel。\n"
+            "请使用项目虚拟环境打包：.\\.venv311\\Scripts\\pyinstaller.exe --clean --noconfirm PromptLabel.spec"
+        )
+    raise
+
 block_cipher = None
 
 datas = [
@@ -33,7 +43,12 @@ if sam3_spec and sam3_spec.submodule_search_locations:
         datas.append((str(bpe_vocab), "sam3/assets"))
     _append_package_sources(sam3_dir, "sam3", excluded_dirs={"agent", "eval", "__pycache__"})
 
-hiddenimports = []
+hiddenimports = [
+    "PySide6",
+    "PySide6.QtCore",
+    "PySide6.QtGui",
+    "PySide6.QtWidgets",
+]
 excludes = [
     # UI and SAM inference do not use SAM3's agent/eval/demo visualization helpers.
     "sam3.agent",
