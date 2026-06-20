@@ -343,6 +343,20 @@ class LabelEditDialog(QDialog):
 
 
 class FileQueueItemDelegate(QStyledItemDelegate):
+    @staticmethod
+    def _is_checked_state(state):
+        if state == Qt.Checked:
+            return True
+        try:
+            if state == Qt.CheckState.Checked:
+                return True
+        except AttributeError:
+            pass
+        try:
+            return int(state) == int(Qt.Checked)
+        except (TypeError, ValueError):
+            return state == 2
+
     def _thumbnail_rect(self, option):
         widget = option.widget
         icon_size = widget.iconSize() if widget else option.decorationSize
@@ -360,12 +374,13 @@ class FileQueueItemDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         painter.save()
         rect = QRectF(option.rect).adjusted(2, 2, -2, -2)
-        checked = index.data(Qt.CheckStateRole) == Qt.Checked
+        checked = self._is_checked_state(index.data(Qt.CheckStateRole))
         selected = bool(option.state & QStyle.State_Selected)
+        is_light = option.palette.window().color().lightness() > 128
 
         if checked or selected:
-            bg_color = QColor("#dbeafe") if checked else QColor("#e5e7eb")
-            border_color = QColor("#2563eb") if checked else QColor("#94a3b8")
+            bg_color = QColor("#dcfce7") if is_light else QColor("#123524")
+            border_color = QColor("#16a34a") if is_light else QColor("#22c55e")
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setPen(QPen(border_color, 1.5))
             painter.setBrush(QBrush(bg_color))
@@ -384,9 +399,9 @@ class FileQueueItemDelegate(QStyledItemDelegate):
         painter.drawRoundedRect(check_rect, 4, 4)
         if checked:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(QColor("#2563eb")))
+            painter.setBrush(QBrush(QColor("#16a34a") if is_light else QColor("#22c55e")))
             painter.drawRoundedRect(check_rect.adjusted(2, 2, -2, -2), 3, 3)
-            painter.setPen(QPen(QColor("#ffffff"), 2.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(QColor("#ffffff") if is_light else QColor("#052e16"), 2.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             x = check_rect.left()
             y = check_rect.top()
             painter.drawLine(QPointF(x + 6, y + 12), QPointF(x + 10, y + 16))
@@ -399,7 +414,10 @@ class FileQueueItemDelegate(QStyledItemDelegate):
             option.rect.width() - 8,
             option.rect.bottom() - thumb_rect.bottom() - 6,
         )
-        painter.setPen(QColor("#111827") if checked or selected else option.palette.text().color())
+        if checked or selected:
+            painter.setPen(QColor("#052e16") if is_light else QColor("#ffffff"))
+        else:
+            painter.setPen(option.palette.text().color())
         metrics = painter.fontMetrics()
         line = metrics.elidedText(text, Qt.ElideMiddle, int(text_rect.width()))
         painter.drawText(text_rect, Qt.AlignHCenter | Qt.AlignTop, line)
@@ -436,6 +454,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.batch_prompt_added = 0
         self.batch_prompt_failed = 0
         self._file_queue_check_anchor_row = -1
+        self._file_queue_preserve_multi_selection_once = False
         self.settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
         self.current_format = self.settings.value("last_format", "yolo", str)
         if self.current_format not in ("json", "yolo", "xml"):
@@ -1136,6 +1155,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
         self.listFiles.viewport().update(self.listFiles.visualItemRect(item))
 
+    def _set_single_checked_file_item(self, target_item):
+        if not target_item:
+            return
+        target_row = self.listFiles.row(target_item)
+        if target_row < 0:
+            return
+        self.listFiles.blockSignals(True)
+        try:
+            for row in range(self.listFiles.count()):
+                item = self.listFiles.item(row)
+                item.setCheckState(Qt.Checked if row == target_row else Qt.Unchecked)
+        finally:
+            self.listFiles.blockSignals(False)
+        self.update_file_queue_title()
+        self.listFiles.viewport().update()
+
     def _set_file_range_checked(self, start_row, end_row, checked):
         if self.listFiles.count() == 0:
             return
@@ -1177,6 +1212,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.update_file_queue_title()
             return True
 
+        self._set_single_checked_file_item(item)
         self._file_queue_check_anchor_row = row
         return False
 
@@ -1212,6 +1248,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             anchor = self._file_queue_check_anchor_row
             if anchor < 0 or anchor >= self.listFiles.count():
                 anchor = current_row
+            self._file_queue_preserve_multi_selection_once = True
             self.listFiles.setCurrentRow(target_row)
             self._set_file_range_checked(anchor, target_row, True)
             self._file_queue_check_anchor_row = anchor
@@ -3467,6 +3504,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if current:
             path = current.data(Qt.UserRole) or current.text()
             self._file_queue_check_anchor_row = self.listFiles.row(current)
+            if self._file_queue_preserve_multi_selection_once:
+                self._file_queue_preserve_multi_selection_once = False
+            else:
+                self._set_single_checked_file_item(current)
             if self._is_batch_prompt_running():
                 self.pending_prompt_targets = {
                     key: value
