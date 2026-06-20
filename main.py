@@ -2828,6 +2828,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def set_current_format(self, format_type):
         if format_type not in ("json", "yolo", "xml"):
             return
+        self._format_changed_by_user = True
         self.current_format = format_type
         self.settings.setValue("last_format", format_type)
         self.settings.sync()
@@ -2835,25 +2836,58 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if self.current_image_path:
             self.scene.clear_shapes()
-            self.load_annotations(self.current_image_path)
+            self.load_annotations(self.current_image_path, allow_format_fallback=False)
             self.update_annotation_panel()
         self._notify(f"当前读写格式已切换为 {format_type.upper()}", "info")
 
-    def load_annotations(self, image_path):
+    def _annotation_path_for_format(self, base_path, format_type):
+        ext_map = {"json": ".json", "yolo": ".txt", "xml": ".xml"}
+        ext = ext_map.get(format_type)
+        return base_path + ext if ext else ""
+
+    def _detect_existing_annotation_format(self, base_path, preferred_format):
+        candidates = [preferred_format, "yolo", "json", "xml"]
+        seen = set()
+        for format_type in candidates:
+            if format_type in seen:
+                continue
+            seen.add(format_type)
+            path = self._annotation_path_for_format(base_path, format_type)
+            if path and os.path.exists(path):
+                return format_type
+        return preferred_format
+
+    def _apply_annotation_format_from_existing_file(self, format_type):
+        if format_type == self.current_format:
+            return
+        self.current_format = format_type
+        self.settings.setValue("last_format", format_type)
+        self.settings.sync()
+        self.formatWidget.set_format(format_type)
+
+    def load_annotations(self, image_path, allow_format_fallback=True):
         if not self.scene.img_item: return
 
         img_w = self.scene.img_item.pixmap().width()
         img_h = self.scene.img_item.pixmap().height()
         base_path = os.path.splitext(image_path)[0]
+        format_type = self.current_format
+        annotation_path = self._annotation_path_for_format(base_path, format_type)
+
+        if allow_format_fallback and not self._format_changed_by_user and annotation_path and not os.path.exists(annotation_path):
+            detected_format = self._detect_existing_annotation_format(base_path, format_type)
+            if detected_format != format_type:
+                self._apply_annotation_format_from_existing_file(detected_format)
+                format_type = detected_format
 
         previous_suspend_state = self._annotation_panel_updates_suspended
         self._annotation_panel_updates_suspended = True
         try:
-            if self.current_format == "json":
+            if format_type == "json":
                 self._load_json(base_path + ".json")
-            elif self.current_format == "yolo":
+            elif format_type == "yolo":
                 self._load_yolo(base_path + ".txt", img_w, img_h)
-            elif self.current_format == "xml":
+            elif format_type == "xml":
                 self._load_xml(base_path + ".xml")
         finally:
             self._annotation_panel_updates_suspended = previous_suspend_state
