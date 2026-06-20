@@ -1143,7 +1143,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         paths = []
         for index in range(self.listFiles.count()):
             item = self.listFiles.item(index)
-            if item.checkState() == Qt.Checked:
+            if self._is_file_item_checked(item):
                 path = item.data(Qt.UserRole)
                 if path:
                     paths.append(os.path.abspath(path))
@@ -1153,8 +1153,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         return [
             self.listFiles.item(index)
             for index in range(self.listFiles.count())
-            if self.listFiles.item(index).checkState() == Qt.Checked
+            if self._is_file_item_checked(self.listFiles.item(index))
         ]
+
+    def _is_file_item_checked(self, item):
+        if not item:
+            return False
+        state = item.checkState()
+        if state == Qt.Checked:
+            return True
+        try:
+            if state == Qt.CheckState.Checked:
+                return True
+        except AttributeError:
+            pass
+        try:
+            return int(state) == int(Qt.Checked)
+        except (TypeError, ValueError):
+            return state == 2
 
     def _file_item_path(self, item):
         return item.data(Qt.UserRole) if item else ""
@@ -1243,11 +1259,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._file_queue_check_anchor_row = current_row
 
     def _handle_file_queue_mouse_press(self, event):
-        if event.button() != Qt.LeftButton:
-            return False
         pos = self._file_queue_event_pos(event)
         item = self.listFiles.itemAt(pos)
         if not item:
+            return False
+
+        if event.button() == Qt.RightButton:
+            if self._is_file_item_checked(item):
+                self._file_queue_preserve_multi_selection_once = True
+            return False
+
+        if event.button() != Qt.LeftButton:
             return False
 
         row = self.listFiles.row(item)
