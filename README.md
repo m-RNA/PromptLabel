@@ -1,5 +1,7 @@
 # PromptLabel
 
+**语言**：中文 | [English](README.en.md)
+
 <p align="center">
   <img src="assets/promptlabel_pl.png" alt="PromptLabel 图标" width="96">
 </p>
