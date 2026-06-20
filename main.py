@@ -6,14 +6,159 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QLabel,
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
-    QPushButton, QHBoxLayout, QTreeWidgetItem, QAbstractSpinBox
+    QPushButton, QHBoxLayout, QTreeWidgetItem, QAbstractSpinBox, QSplashScreen
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer, QEvent
 from PySide6.QtGui import (
     QPolygonF, QColor, QBrush, QPixmap, QIcon, QPalette, QCursor, QPainter, QPen,
-    QShortcut, QKeySequence, QDesktopServices
+    QShortcut, QKeySequence, QDesktopServices, QFont, QPainterPath, QLinearGradient
 )
 from PySide6.QtCore import QUrl
+
+APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
+BASE_DIR = APP_DIR
+SETTINGS_PATH = os.path.join(BASE_DIR, "PromptLabel.ini")
+APP_NAME = "PromptLabel"
+APP_ICON_PATH = os.path.join(RESOURCE_DIR, "assets", "promptlabel_pl.png")
+DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
+SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
+SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
+SAM3_BAIDU_URL = "https://pan.baidu.com/s/11rKzO6W5b_i8aOFcd9xOzA?pwd=6666"
+SAM3_BAIDU_CODE = "6666"
+_STARTUP_APP = None
+_STARTUP_SPLASH = None
+_STARTUP_ICON = None
+APP_UI_FONT_FAMILY = "Microsoft YaHei UI"
+
+
+def _set_windows_app_user_model_id():
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(f"{APP_NAME}.Desktop")
+    except Exception:
+        pass
+
+
+def _create_fallback_icon(size=118):
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+
+    rect = QRectF(2, 2, size - 4, size - 4)
+    gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
+    gradient.setColorAt(0.0, QColor("#f9fbff"))
+    gradient.setColorAt(1.0, QColor("#e7f8f5"))
+
+    path = QPainterPath()
+    path.addRoundedRect(rect, 22, 22)
+    painter.fillPath(path, gradient)
+    painter.setPen(QPen(QColor("#96a8f3"), 3))
+    painter.drawPath(path)
+
+    painter.setPen(QColor("#6671dc"))
+    painter.setFont(QFont("Noto Sans", 42, QFont.DemiBold))
+    painter.drawText(rect, Qt.AlignCenter, "PL")
+    painter.end()
+    return pixmap
+
+
+def _load_app_icon():
+    if os.path.exists(APP_ICON_PATH):
+        return QIcon(APP_ICON_PATH)
+    return QIcon(_create_fallback_icon())
+
+
+def _read_startup_theme_key():
+    settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
+    theme_key = settings.value("theme", "system", str)
+    return theme_key if theme_key in ("system", "light", "dark") else "system"
+
+
+def _resolved_startup_theme(theme_key):
+    if theme_key in ("light", "dark"):
+        return theme_key
+    try:
+        color_scheme = _STARTUP_APP.styleHints().colorScheme() if _STARTUP_APP else Qt.ColorScheme.Unknown
+        return "dark" if color_scheme == Qt.ColorScheme.Dark else "light"
+    except Exception:
+        return "light"
+
+
+def _create_startup_splash_pixmap(resolved_theme=None):
+    resolved_theme = resolved_theme or _resolved_startup_theme(_read_startup_theme_key())
+    width, height = 520, 320
+    pixmap = QPixmap(width, height)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+
+    frame = QRectF(8, 8, width - 16, height - 16)
+    gradient = QLinearGradient(frame.topLeft(), frame.bottomRight())
+    if resolved_theme == "dark":
+        gradient.setColorAt(0.0, QColor("#101525"))
+        gradient.setColorAt(0.56, QColor("#151b32"))
+        gradient.setColorAt(1.0, QColor("#102b2d"))
+        border_color = QColor("#3d4772")
+        title_color = QColor("#eef2ff")
+        hint_color = QColor("#aab5cf")
+    else:
+        gradient.setColorAt(0.0, QColor("#fbfdff"))
+        gradient.setColorAt(0.58, QColor("#f4f8ff"))
+        gradient.setColorAt(1.0, QColor("#e4f7f4"))
+        border_color = QColor("#c5d0f7")
+        title_color = QColor("#4450b8")
+        hint_color = QColor("#6b7280")
+
+    frame_path = QPainterPath()
+    frame_path.addRoundedRect(frame, 30, 30)
+    painter.fillPath(frame_path, gradient)
+    painter.setPen(QPen(border_color, 1))
+    painter.drawPath(frame_path)
+
+    icon_pixmap = QPixmap(APP_ICON_PATH) if os.path.exists(APP_ICON_PATH) else _create_fallback_icon()
+    icon_size = 120
+    icon_pixmap = icon_pixmap.scaled(icon_size, icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    icon_x = (width - icon_pixmap.width()) // 2
+    painter.drawPixmap(icon_x, 58, icon_pixmap)
+
+    painter.setPen(title_color)
+    painter.setFont(QFont(APP_UI_FONT_FAMILY, 25, QFont.DemiBold))
+    painter.drawText(QRectF(0, 190, width, 42), Qt.AlignCenter, APP_NAME)
+
+    painter.setPen(hint_color)
+    painter.setFont(QFont(APP_UI_FONT_FAMILY, 12))
+    painter.drawText(QRectF(0, 237, width, 28), Qt.AlignCenter, "\u52a0\u8f7d\u4e2d...")
+    painter.end()
+    return pixmap
+
+
+def _show_startup_splash():
+    global _STARTUP_APP, _STARTUP_SPLASH, _STARTUP_ICON
+
+    _set_windows_app_user_model_id()
+    _STARTUP_APP = QApplication(sys.argv)
+    _STARTUP_APP.setApplicationName(APP_NAME)
+    _STARTUP_ICON = _load_app_icon()
+    if not _STARTUP_ICON.isNull():
+        _STARTUP_APP.setWindowIcon(_STARTUP_ICON)
+
+    resolved_theme = _resolved_startup_theme(_read_startup_theme_key())
+    _STARTUP_SPLASH = QSplashScreen(_create_startup_splash_pixmap(resolved_theme))
+    _STARTUP_SPLASH.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+    _STARTUP_SPLASH.show()
+    _STARTUP_APP.processEvents()
+
+
+if __name__ == "__main__":
+    _show_startup_splash()
+
 
 from main_dataset_tool import DatasetToolWindow
 from ui.main_window import Ui_MainWindow
@@ -21,16 +166,6 @@ from core.canvas import Canvas, CanvasMode
 from core.sam_client import SAMClient
 from core.exporter import Exporter
 from core.shapes import BaseShape, RectShape, PolyShape, PointShape, RotatedRectShape, color_for_label
-
-APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
-RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
-BASE_DIR = APP_DIR
-SETTINGS_PATH = os.path.join(BASE_DIR, "PromptLabel.ini")
-DEFAULT_SAM3_PATH = os.path.join(BASE_DIR, "models", "sam3.pt")
-SAM3_OFFICIAL_URL = "https://huggingface.co/facebook/sam3/tree/main"
-SAM3_SOURCE_URL = "https://github.com/facebookresearch/sam3"
-SAM3_BAIDU_URL = "https://pan.baidu.com/s/11rKzO6W5b_i8aOFcd9xOzA?pwd=6666"
-SAM3_BAIDU_CODE = "6666"
 
 
 class LabelSelectDialog(QDialog):
@@ -2937,7 +3072,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    app = _STARTUP_APP or QApplication(sys.argv)
+    app_icon = _STARTUP_ICON or _load_app_icon()
+    splash = _STARTUP_SPLASH
+    if splash is None:
+        splash = QSplashScreen(_create_startup_splash_pixmap())
+        splash.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        splash.show()
+        app.processEvents()
+
     window = MainWindow()
+    if not app_icon.isNull():
+        window.setWindowIcon(app_icon)
     window.show()
+    app.processEvents()
+    QTimer.singleShot(260, lambda: splash.finish(window))
     sys.exit(app.exec())

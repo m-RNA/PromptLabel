@@ -7,6 +7,7 @@ from pathlib import Path
 block_cipher = None
 
 datas = [
+    ("assets/promptlabel_pl.png", "assets"),
     ("ui/*.qss", "ui"),
     ("ui/*.png", "ui"),
     ("README_RELEASE.txt", "."),
@@ -153,6 +154,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon="assets/promptlabel_pl.ico",
 )
 
 coll = COLLECT(
