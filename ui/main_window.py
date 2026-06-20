@@ -1,11 +1,93 @@
+import os
+import sys
+
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QListWidget,
     QGraphicsView, QLabel, QLineEdit, QPushButton, QToolButton, QStatusBar, QMenu,
     QSplitter, QListView, QComboBox, QAbstractItemView, QTreeWidget,
     QTabWidget, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QAction, QActionGroup, QPainter, QColor
+from PySide6.QtGui import QAction, QActionGroup, QPainter, QColor, QIcon, QPixmap, QPalette
+from PySide6.QtSvg import QSvgRenderer
+
+
+UI_RESOURCE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class ToolbarIconSet:
+    ICON_FILES = {
+        "open": "folder-open.svg",
+        "save": "save.svg",
+        "rect": "rectangle.svg",
+        "poly": "polygon.svg",
+        "point": "point.svg",
+        "rbox": "rotate.svg",
+        "pulse": "pulse.svg",
+        "panel_left": "panel-left.svg",
+        "panel_right": "panel-right.svg",
+        "help": "help.svg",
+        "dataset": "dataset.svg",
+        "visible": "eye.svg",
+        "invisible": "eye-off.svg",
+        "system": "system.svg",
+        "light": "sun.svg",
+        "dark": "moon.svg",
+        "sam": "sam.svg",
+        "send": "send.svg",
+        "search": "search.svg",
+        "format": "format.svg",
+    }
+
+    def __init__(self, icon_dir=None):
+        self.icon_dir = icon_dir or os.path.join(UI_RESOURCE_DIR, "ui", "icons", "fluent")
+        self._cache = {}
+
+    def clear_cache(self):
+        self._cache.clear()
+
+    def _default_color(self):
+        app = QApplication.instance()
+        if app is None:
+            return QColor("#f8fafc")
+        return app.palette().color(QPalette.ButtonText)
+
+    def icon(self, name, color=None):
+        color = QColor(color) if color is not None else self._default_color()
+        cache_key = (name, color.name(QColor.HexArgb))
+        if cache_key not in self._cache:
+            self._cache[cache_key] = self._build_icon(name, color)
+        return self._cache[cache_key]
+
+    def pixmap(self, name, size=24, color=None):
+        return self.icon(name, color).pixmap(size, size)
+
+    def _build_icon(self, name, color):
+        filename = self.ICON_FILES.get(name)
+        if not filename:
+            return QIcon()
+        path = os.path.join(self.icon_dir, filename)
+        if not os.path.exists(path):
+            return QIcon()
+        icon = QIcon()
+        for size in (20, 24, 28, 32):
+            icon.addPixmap(self._render_pixmap(path, size, color), QIcon.Normal, QIcon.Off)
+            disabled = QColor(color)
+            disabled.setAlpha(95)
+            icon.addPixmap(self._render_pixmap(path, size, disabled), QIcon.Disabled, QIcon.Off)
+        return icon
+
+    def _render_pixmap(self, path, size, color):
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        renderer = QSvgRenderer(path)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        renderer.render(painter)
+        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+        painter.fillRect(pixmap.rect(), color)
+        painter.end()
+        return pixmap
 
 
 class FormatSelectorWidget(QWidget):
@@ -47,28 +129,40 @@ class FormatSelectorWidget(QWidget):
 class ThemeSelectorWidget(QWidget):
     theme_changed = Signal(str)
 
-    def __init__(self, parent=None):
+    THEME_ORDER = ("system", "light", "dark")
+    THEME_TEXT = {
+        "system": "自动主题",
+        "light": "浅色主题",
+        "dark": "深色主题",
+    }
+
+    def __init__(self, icons=None, parent=None):
         super().__init__(parent)
-        self.setObjectName("toolbarField")
+        self.icons = icons or ToolbarIconSet()
+        self._theme_key = "system"
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        self.label = QLabel("主题")
-        self.label.setObjectName("toolbarFieldLabel")
-        self.combo = QComboBox()
-        self.combo.setObjectName("toolbarThemeCombo")
-        self.combo.addItem("自动", "system")
-        self.combo.addItem("浅色", "light")
-        self.combo.addItem("深色", "dark")
-        layout.addWidget(self.label)
-        layout.addWidget(self.combo)
-        self.combo.currentIndexChanged.connect(lambda _: self.theme_changed.emit(self.combo.currentData()))
+        self.btn = QToolButton()
+        self.btn.setObjectName("toolbarIconButton")
+        self.btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.btn.setAutoRaise(False)
+        self.btn.setFixedSize(42, 40)
+        self.btn.setIconSize(QSize(28, 28))
+        layout.addWidget(self.btn)
+        self.btn.clicked.connect(self._toggle_theme)
+        self.set_theme(self._theme_key)
+
+    def _toggle_theme(self):
+        current_index = self.THEME_ORDER.index(self._theme_key)
+        next_theme = self.THEME_ORDER[(current_index + 1) % len(self.THEME_ORDER)]
+        self.theme_changed.emit(next_theme)
 
     def set_theme(self, theme_key):
-        for i in range(self.combo.count()):
-            if self.combo.itemData(i) == theme_key:
-                self.combo.setCurrentIndex(i)
-                return
+        if theme_key not in self.THEME_ORDER:
+            theme_key = "system"
+        self._theme_key = theme_key
+        self.btn.setIcon(self.icons.icon(theme_key))
+        self.btn.setToolTip(self.THEME_TEXT[theme_key])
 
 
 class SwitchControl(QWidget):
@@ -184,8 +278,9 @@ class Ui_MainWindow(object):
         self.toolBar.setObjectName("topCommandBar")
         self.toolBar.setOrientation(Qt.Horizontal)
         self.toolBar.setMovable(False)
-        self.toolBar.setIconSize(QSize(16, 16))
-        self.toolBar.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.icons = ToolbarIconSet()
+        self.toolBar.setIconSize(QSize(28, 28))
+        self.toolBar.setToolButtonStyle(Qt.ToolButtonIconOnly)
         MainWindow.addToolBar(Qt.TopToolBarArea, self.toolBar)
 
         self.actionOpen = QAction("打开", MainWindow)
@@ -220,26 +315,33 @@ class Ui_MainWindow(object):
         self.actionRect.setChecked(True)
 
         self.toolBar.addAction(self.actionOpen)
+        self.toolBar.addAction(self.actionSave)
         self.toolBar.addSeparator()
         self.toolBar.addAction(self.actionRect)
         self.toolBar.addAction(self.actionPoly)
         self.toolBar.addAction(self.actionPoint)
         self.toolBar.addAction(self.actionRBox)
         self.toolBar.addAction(self.actionBreathingHighlight)
-        self.toolBar.addSeparator()
+        self.toolbarSpacer = QWidget()
+        self.toolbarSpacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.toolBar.addWidget(self.toolbarSpacer)
         self.formatWidget = FormatSelectorWidget()
         self.toolBar.addWidget(self.formatWidget)
-        self.themeWidget = ThemeSelectorWidget()
+        self.themeWidget = ThemeSelectorWidget(self.icons)
         self.toolBar.addWidget(self.themeWidget)
-        self.toolBar.addSeparator()
         self.toolBar.addAction(self.actionToggleLeftPanel)
         self.toolBar.addAction(self.actionToggleRightPanel)
-        self.toolBar.addSeparator()
-        self.btnDatasetTool = QPushButton("数据集处理")
+        self.btnDatasetTool = QPushButton("编辑数据集")
         self.btnDatasetTool.setObjectName("toolbarCommandButton")
+        self.btnDatasetTool.setIconSize(QSize(24, 24))
+        self.btnDatasetTool.setFixedSize(116, 40)
         self.toolBar.addWidget(self.btnDatasetTool)
-        self.btnHelp = QPushButton("帮助")
-        self.btnHelp.setObjectName("toolbarCommandButton")
+        self.btnHelp = QToolButton()
+        self.btnHelp.setObjectName("toolbarIconButton")
+        self.btnHelp.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.btnHelp.setFixedSize(42, 40)
+        self.btnHelp.setIconSize(QSize(28, 28))
+        self.btnHelp.setToolTip("帮助")
         self.toolBar.addWidget(self.btnHelp)
 
         self.splitter = QSplitter(Qt.Horizontal)
@@ -284,6 +386,8 @@ class Ui_MainWindow(object):
         self.samSwitch = QToolButton()
         self.samSwitch.setObjectName("samToggleButton")
         self.samSwitch.setText("打开 SAM")
+        self.samSwitch.setIconSize(QSize(24, 24))
+        self.samSwitch.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.samSwitch.setCheckable(True)
         self.samRowLayout.addWidget(self.samSwitch)
         self.labelComboLabel = QLabel("标签")
@@ -305,8 +409,10 @@ class Ui_MainWindow(object):
         self.samRowLayout.addWidget(self.samPromptInput, 1)
         self.samPromptBtn = QPushButton("提交")
         self.samPromptBtn.setObjectName("primaryButton")
+        self.samPromptBtn.setIconSize(QSize(20, 20))
         self.samRowLayout.addWidget(self.samPromptBtn)
         self.samRefBtn = QPushButton("参考查找")
+        self.samRefBtn.setIconSize(QSize(20, 20))
         self.samRowLayout.addWidget(self.samRefBtn)
         self.centerLayout.addWidget(self.samRow)
 
@@ -373,3 +479,23 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusBar)
         self.annotationStatsLabel = QLabel("统计: 暂无标注")
         self.statusBar.addPermanentWidget(self.annotationStatsLabel)
+        self._apply_toolbar_icons()
+
+    def _apply_toolbar_icons(self):
+        self.icons.clear_cache()
+        self.actionOpen.setIcon(self.icons.icon("open"))
+        self.actionSave.setIcon(self.icons.icon("save"))
+        self.actionRect.setIcon(self.icons.icon("rect"))
+        self.actionPoly.setIcon(self.icons.icon("poly"))
+        self.actionPoint.setIcon(self.icons.icon("point"))
+        self.actionRBox.setIcon(self.icons.icon("rbox"))
+        self.actionBreathingHighlight.setIcon(self.icons.icon("pulse"))
+        self.actionToggleLeftPanel.setIcon(self.icons.icon("panel_left"))
+        self.actionToggleRightPanel.setIcon(self.icons.icon("panel_right"))
+        self.btnDatasetTool.setIcon(self.icons.icon("dataset"))
+        self.btnHelp.setIcon(self.icons.icon("help"))
+        self.samSwitch.setIcon(self.icons.icon("sam"))
+        self.samPromptBtn.setIcon(self.icons.icon("send"))
+        self.samRefBtn.setIcon(self.icons.icon("search"))
+        if hasattr(self, "themeWidget"):
+            self.themeWidget.set_theme(self.themeWidget._theme_key)

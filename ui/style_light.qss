@@ -96,6 +96,7 @@ QWidget#toolbarField {
 }
 
 QToolButton,
+QToolButton#toolbarIconButton,
 QPushButton#toolbarCommandButton,
 QPushButton#toolbarSelectButton,
 QComboBox#toolbarThemeCombo {
@@ -105,14 +106,25 @@ QComboBox#toolbarThemeCombo {
     color: #0f172a;
     font-size: 12px;
     font-weight: 600;
-    min-height: 24px;
-    padding: 4px 12px;
+    min-height: 38px;
+    max-height: 38px;
+    padding: 0px 12px;
     text-align: center;
+}
+
+QToolButton#toolbarIconButton {
+    min-width: 40px;
+    max-width: 40px;
+    padding: 0px;
+}
+
+QPushButton#toolbarCommandButton {
+    padding: 0px 10px;
 }
 
 QPushButton#toolbarSelectButton,
 QComboBox#toolbarThemeCombo {
-    padding: 4px 24px 4px 9px;
+    padding: 0px 24px 0px 9px;
 }
 
 QToolButton:hover,

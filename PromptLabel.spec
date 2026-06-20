@@ -21,8 +21,10 @@ datas = [
     ("assets/promptlabel_pl.png", "assets"),
     ("ui/*.qss", "ui"),
     ("ui/*.png", "ui"),
+    ("ui/icons/fluent/*.svg", "ui/icons/fluent"),
     ("README_RELEASE.txt", "."),
     ("SAM_LICENSE.txt", "."),
+    ("THIRD_PARTY_NOTICES.md", "."),
 ]
 
 
@@ -47,6 +49,7 @@ hiddenimports = [
     "PySide6",
     "PySide6.QtCore",
     "PySide6.QtGui",
+    "PySide6.QtSvg",
     "PySide6.QtWidgets",
 ]
 excludes = [

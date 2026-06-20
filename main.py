@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QColorDialog, QMenu, QDialog, QVBoxLayout, QListWidget,
     QComboBox, QLineEdit, QTextEdit, QPlainTextEdit,
     QPushButton, QHBoxLayout, QTreeWidgetItem, QAbstractSpinBox, QSplashScreen,
-    QProgressBar, QStyledItemDelegate, QStyle
+    QProgressBar, QStyledItemDelegate, QStyle, QStyleOptionViewItem
 )
 from PySide6.QtCore import Qt, QPointF, QRectF, QSettings, QSize, QTimer, QEvent
 from PySide6.QtGui import (
@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
 
 from main_dataset_tool import DatasetToolWindow
-from ui.main_window import Ui_MainWindow
+from ui.main_window import ToolbarIconSet, Ui_MainWindow
 from core.canvas import Canvas, CanvasMode
 from core.sam_client import SAMClient
 from core.exporter import Exporter
@@ -431,6 +431,45 @@ class FileQueueItemDelegate(QStyledItemDelegate):
         return super().sizeHint(option, index)
 
 
+class LabelVisibilityItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.icons = ToolbarIconSet()
+
+    def paint(self, painter, option, index):
+        if index.data(Qt.CheckStateRole) is None:
+            super().paint(painter, option, index)
+            return
+
+        item_option = QStyleOptionViewItem(option)
+        self.initStyleOption(item_option, index)
+        widget = option.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawPrimitive(QStyle.PE_PanelItemViewItem, item_option, painter, widget)
+
+        check_rect = style.subElementRect(QStyle.SE_ItemViewItemCheckIndicator, item_option, widget)
+        content_option = QStyleOptionViewItem(item_option)
+        content_option.features &= ~QStyleOptionViewItem.HasCheckIndicator
+        content_option.rect.setLeft(check_rect.right() + 7)
+        style.drawControl(QStyle.CE_ItemViewItem, content_option, painter, widget)
+
+        visible = item_option.checkState == Qt.Checked
+        color = item_option.palette.highlightedText().color() if item_option.state & QStyle.State_Selected else item_option.palette.text().color()
+        pixmap = self.icons.pixmap("visible" if visible else "invisible", 22, color)
+        icon_rect = QRectF(
+            check_rect.center().x() - 11,
+            check_rect.center().y() - 11,
+            22,
+            22,
+        )
+        painter.drawPixmap(icon_rect.toRect(), pixmap)
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        size.setHeight(max(size.height(), 30))
+        return size
+
+
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
@@ -440,6 +479,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.view.setScene(self.scene)
         self.fileQueueDelegate = FileQueueItemDelegate(self.listFiles)
         self.listFiles.setItemDelegate(self.fileQueueDelegate)
+        self.labelVisibilityDelegate = LabelVisibilityItemDelegate(self.listClasses)
+        self.listClasses.setItemDelegate(self.labelVisibilityDelegate)
 
         self.current_image_path = None
         self.current_dir = None
@@ -1707,6 +1748,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             app.setPalette(self._build_light_palette())
             app.setStyleSheet(self._load_theme_stylesheet("light"))
         self.themeWidget.set_theme(theme_key)
+        if hasattr(self, "_apply_toolbar_icons"):
+            self._apply_toolbar_icons()
+        if hasattr(self, "listClasses"):
+            self.listClasses.viewport().update()
         if hasattr(self, "dataset_window") and self.dataset_window is not None:
             self.dataset_window.apply_theme(resolved)
         if persist:
