@@ -487,11 +487,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.batchPromptProgress = QProgressBar()
         self.batchPromptProgress.setObjectName("batchPromptProgress")
-        self.batchPromptProgress.setMinimumWidth(360)
-        self.batchPromptProgress.setMaximumWidth(720)
+        self.batchPromptProgress.setFixedWidth(560)
         self.batchPromptProgress.setTextVisible(True)
         self.batchPromptProgress.setVisible(False)
-        self.statusBar.addWidget(self.batchPromptProgress, 1)
+        self.statusBar.addWidget(self.batchPromptProgress)
 
         self.sam_client = SAMClient(self)
         self.sam_client.inference_result.connect(self.scene.handle_sam_result)
