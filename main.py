@@ -2334,19 +2334,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if group:
                     grouped_shapes[group].append(shape)
 
-            first_non_empty_index = None
-            current_group_has_items = False
-            current_index = self.annotationToolBox.currentIndex()
+            current_mode_index = None
             for key, (widget, toolbox_index, _mode, title) in self._annotation_group_config().items():
                 rendered_count = self._render_annotation_group(widget, grouped_shapes[key])
                 self.annotationToolBox.setTabText(toolbox_index, f"{title} ({rendered_count})")
-                if rendered_count > 0:
-                    if first_non_empty_index is None:
-                        first_non_empty_index = toolbox_index
-                    if toolbox_index == current_index:
-                        current_group_has_items = True
-            if first_non_empty_index is not None and not current_group_has_items:
-                self.annotationToolBox.setCurrentIndex(first_non_empty_index)
+                if _mode == self.scene.mode:
+                    current_mode_index = toolbox_index
+            if current_mode_index is not None and self.annotationToolBox.currentIndex() != current_mode_index:
+                self.annotationToolBox.blockSignals(True)
+                try:
+                    self.annotationToolBox.setCurrentIndex(current_mode_index)
+                finally:
+                    self.annotationToolBox.blockSignals(False)
         finally:
             self.annotation_item_syncing = previous_sync_state
 
@@ -3423,6 +3422,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.update_annotation_panel()
 
     def on_annotation_group_changed(self, index):
+        if self.annotation_item_syncing or self._annotation_panel_updates_suspended:
+            return
         group_map = {
             self.rectStatsIndex: CanvasMode.RECT,
             self.polyStatsIndex: CanvasMode.POLY,
