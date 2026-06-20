@@ -487,10 +487,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.batchPromptProgress = QProgressBar()
         self.batchPromptProgress.setObjectName("batchPromptProgress")
-        self.batchPromptProgress.setFixedWidth(190)
+        self.batchPromptProgress.setMinimumWidth(360)
+        self.batchPromptProgress.setMaximumWidth(720)
         self.batchPromptProgress.setTextVisible(True)
         self.batchPromptProgress.setVisible(False)
-        self.statusBar.addPermanentWidget(self.batchPromptProgress)
+        self.statusBar.addWidget(self.batchPromptProgress, 1)
 
         self.sam_client = SAMClient(self)
         self.sam_client.inference_result.connect(self.scene.handle_sam_result)
@@ -2467,7 +2468,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         image_path = task["image_path"]
         step = self.batch_prompt_completed + 1
         self._update_batch_prompt_progress(self.batch_prompt_completed)
-        self._set_status(f"批量智能标注中：{step}/{self.batch_prompt_total} - {os.path.basename(image_path)}", "orange")
+        self._set_status(f"批量智能标注中：{step}/{self.batch_prompt_total}", "orange")
         QApplication.processEvents()
 
         if not os.path.exists(image_path):
