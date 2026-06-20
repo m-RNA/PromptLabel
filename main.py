@@ -694,7 +694,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("Ctrl+Z", self.undo, True),
             ("Ctrl+Y", self.redo, True),
             ("Ctrl+Shift+Z", self.redo, True),
-            ("Ctrl+A", self.select_all_current_annotation_group, False),
+            ("Ctrl+A", self.select_all_by_focus, False),
             ("A", self.previous_image, False),
             ("Left", self.previous_image, False),
             ("D", self.next_image, False),
@@ -742,6 +742,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 return True
             widget = widget.parentWidget()
         return False
+
+    def _file_queue_has_focus(self):
+        focused = QApplication.focusWidget()
+        return focused in (self.listFiles, self.listFiles.viewport())
+
+    def select_all_by_focus(self):
+        if self._file_queue_has_focus():
+            self.select_all_file_queue_items()
+            return
+        self.select_all_current_annotation_group()
 
     def eventFilter(self, watched, event):
         if watched is self.listFiles.viewport() and event.type() == QEvent.MouseButtonPress:
@@ -1186,6 +1196,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.update_file_queue_title()
         self.listFiles.viewport().update()
 
+    def select_all_file_queue_items(self):
+        if self.listFiles.count() == 0:
+            return
+        current_row = self.listFiles.currentRow()
+        if current_row < 0:
+            current_row = 0
+            self.listFiles.setCurrentRow(current_row)
+        self._set_file_range_checked(0, self.listFiles.count() - 1, True)
+        self._file_queue_check_anchor_row = current_row
+
     def _handle_file_queue_mouse_press(self, event):
         if event.button() != Qt.LeftButton:
             return False
@@ -1232,8 +1252,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.listFiles.setCurrentRow(current_row)
 
         if key == Qt.Key_A and modifiers == Qt.ControlModifier:
-            self._set_file_range_checked(0, self.listFiles.count() - 1, True)
-            self._file_queue_check_anchor_row = current_row
+            self.select_all_file_queue_items()
             return True
 
         if key == Qt.Key_Space and (modifiers == Qt.NoModifier or modifiers == Qt.ControlModifier):
@@ -2859,7 +2878,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "A / D：上一张 / 下一张\n"
             "Ctrl + Z：撤销\n"
             "Ctrl + Y / Ctrl + Shift + Z：重做\n"
-            "Ctrl + A：选择当前标注类型分组内的全部标注\n"
+            "Ctrl + A：图片队列有焦点时全选图片，否则选择当前标注类型分组内的全部标注\n"
             "1 - 9：切换当前标签\n"
             "Q / Space：切换 SAM\n"
             "R：提交 SAM 提示词\n"
