@@ -4,9 +4,7 @@
   <img src="assets/promptlabel_pl.png" alt="PromptLabel 图标" width="96">
 </p>
 
-PromptLabel 是基于 [luohuabuxiema/LabelPaw](https://github.com/luohuabuxiema/LabelPaw) 改造的图像标注工作台。这个分支不是原作者官方版本，重点也不是新增一种标注格式，而是按个人习惯修改界面&小功能。
-
-当前版本是 beta。功能可用，但打包体积、模型加载体验和部分边界交互还会继续优化。
+PromptLabel 是基于 [LabelPaw](https://github.com/luohuabuxiema/LabelPaw) 改造的图像标注工作台。这个分支不是原作者官方版本，重点也不是新增一种标注格式，而是按个人习惯修改界面&小功能。
 
 ## 核心卖点
 
@@ -92,7 +90,7 @@ models/sam3.pt
 
 ### Beta 便携包
 
-1. 从 Release 页面下载 `PromptLabel-v0.1.0-beta.1` 便携包。
+1. 从 Release 页面下载 `PromptLabel-vX.X.X` 便携包。
 2. 解压到同一个目录。
 3. 将 `sam3.pt` 放到 `models/sam3.pt`。
 4. 双击 `PromptLabel.exe` 启动。
