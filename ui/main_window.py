@@ -260,6 +260,7 @@ class Ui_MainWindow(object):
         self.listFiles.setViewMode(QListView.IconMode)
         self.listFiles.setResizeMode(QListView.Adjust)
         self.listFiles.setMovement(QListView.Static)
+        self.listFiles.setSelectionMode(QAbstractItemView.SingleSelection)
         self.listFiles.setWrapping(True)
         self.listFiles.setIconSize(QSize(132, 132))
         self.listFiles.setGridSize(QSize(148, 172))

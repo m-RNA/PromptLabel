@@ -356,6 +356,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.class_visibility = {}
         self.prompt_aliases = {}
         self.pending_prompt_targets = {}
+        self.batch_prompt_queue = []
+        self.active_batch_prompt_task = None
+        self.batch_prompt_total = 0
+        self.batch_prompt_completed = 0
+        self.batch_prompt_added = 0
+        self.batch_prompt_failed = 0
         self.settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
         self.current_format = self.settings.value("last_format", "yolo", str)
         if self.current_format not in ("json", "yolo", "xml"):
@@ -456,6 +462,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.samPromptInput.lineEdit().returnPressed.connect(self.trigger_sam_prompt)
 
         self.listFiles.currentItemChanged.connect(self.on_file_selected)
+        self.listFiles.itemChanged.connect(self.on_file_queue_item_changed)
         self.listFiles.setContextMenuPolicy(Qt.CustomContextMenu)
         self.listFiles.customContextMenuRequested.connect(self.show_file_list_context_menu)
         self.splitter.splitterMoved.connect(lambda _pos, _index: self._on_splitter_moved())
@@ -1015,8 +1022,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 item.setText(file_name)
                 break
 
+    def checked_file_paths(self):
+        paths = []
+        for index in range(self.listFiles.count()):
+            item = self.listFiles.item(index)
+            if item.checkState() == Qt.Checked:
+                path = item.data(Qt.UserRole)
+                if path:
+                    paths.append(os.path.abspath(path))
+        return paths
+
+    def on_file_queue_item_changed(self, item):
+        self.update_file_queue_title()
+
     def update_file_queue_title(self):
-        if hasattr(self, "fileTitle"):
+        if not hasattr(self, "fileTitle"):
+            return
+        checked_count = len(self.checked_file_paths())
+        if checked_count:
+            self.fileTitle.setText(f"图片队列 ({self.listFiles.count()} 张，已选 {checked_count} 张)")
+        else:
             self.fileTitle.setText(f"图片队列 ({self.listFiles.count()} 张)")
 
     def add_class_to_list(self, cls_name):
@@ -1195,12 +1220,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if not self.current_image_path:
             self._cancel_pending_sam_analysis()
             return
+        if self._is_batch_prompt_running():
+            self._cancel_pending_sam_analysis()
+            return
         if not self.sam_client.model or not self.samSwitch.isChecked() or not self.samSwitch.isEnabled():
             self._cancel_pending_sam_analysis()
             return
         self._sam_analysis_timer.start(self.sam_analysis_delay_ms if delay_ms is None else delay_ms)
 
     def _analyze_current_image_for_sam(self):
+        if self._is_batch_prompt_running():
+            return
         image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
         if not image_path:
             return
@@ -1925,9 +1955,313 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         except Exception as e:
             self._notify(f"启动失败: {e}", "danger")
 
+    def _is_batch_prompt_running(self):
+        return bool(self.active_batch_prompt_task or self.batch_prompt_queue)
+
+    def _pending_prompt_target_label(self, entry):
+        if isinstance(entry, dict):
+            return entry.get("label", "")
+        return entry
+
+    def _normalize_pending_prompt_target(self, entry):
+        if isinstance(entry, dict):
+            return {
+                "label": entry.get("label", ""),
+                "mode": entry.get("mode", self.scene.mode),
+                "format": entry.get("format", self.current_format),
+                "batch": bool(entry.get("batch", False)),
+            }
+        return {
+            "label": entry,
+            "mode": self.scene.mode,
+            "format": self.current_format,
+            "batch": False,
+        }
+
+    def _prompt_result_shapes(self, results, target_label, mode):
+        def result_sort_key(res):
+            x, y, _w, _h = res.get("rect", [0, 0, 0, 0])
+            return (float(x), float(y))
+
+        shapes_data = []
+        for res in sorted(results, key=result_sort_key):
+            if mode == CanvasMode.RECT:
+                x, y, w, h = res.get("rect", [0, 0, 0, 0])
+                if w <= 0 or h <= 0:
+                    continue
+                shapes_data.append({
+                    "label": target_label,
+                    "type": "rectangle",
+                    "points": [[float(x), float(y)], [float(x + w), float(y + h)]],
+                })
+            else:
+                pts = res.get("poly_pts", [])
+                if len(pts) < 3:
+                    continue
+                shapes_data.append({
+                    "label": target_label,
+                    "type": "polygon",
+                    "points": [[float(p[0]), float(p[1])] for p in pts],
+                })
+        return shapes_data
+
+    def _shape_item_from_data(self, shape_data):
+        label = shape_data.get("label", "")
+        shape_type = shape_data.get("type", "rectangle")
+        points = shape_data.get("points", [])
+        if shape_type == "rectangle" and len(points) == 2:
+            return RectShape(
+                QRectF(
+                    points[0][0],
+                    points[0][1],
+                    points[1][0] - points[0][0],
+                    points[1][1] - points[0][1],
+                ),
+                label,
+            )
+        if shape_type == "polygon" and len(points) >= 3:
+            return PolyShape(QPolygonF([QPointF(p[0], p[1]) for p in points]), label)
+        if shape_type == "point" and len(points) == 1:
+            return PointShape(QPointF(points[0][0], points[0][1]), label)
+        if shape_type == "obb":
+            rect_data = shape_data.get("rect", [])
+            if len(rect_data) == 4:
+                return RotatedRectShape(rect_data[0], rect_data[1], rect_data[2], rect_data[3], shape_data.get("angle", 0), label)
+        return None
+
+    def _add_shape_data_to_scene(self, shapes_data):
+        added = 0
+        for shape_data in shapes_data:
+            label = shape_data.get("label", "")
+            shape = self._shape_item_from_data(shape_data)
+            if not shape:
+                continue
+            self.scene.addItem(shape)
+            self._apply_shape_label_style(shape, label)
+            if hasattr(shape, 'update_label_text'):
+                shape.update_label_text(label)
+            if hasattr(shape, 'update_label_position'):
+                shape.update_label_position(shape)
+            if hasattr(shape, 'update_label_visibility'):
+                shape.update_label_visibility(shape, is_selected=False, is_hovered=False)
+            added += 1
+        return added
+
+    def _read_json_annotation_shapes(self, json_path):
+        if not os.path.exists(json_path):
+            return []
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return []
+
+        shapes_data = []
+        for shape_data in data.get("shapes", []):
+            label = shape_data.get("label", "")
+            shape_type = shape_data.get("shape_type", "rectangle")
+            points = shape_data.get("points", [])
+            if shape_type in ("rectangle", "polygon", "point"):
+                shapes_data.append({"label": label, "type": shape_type, "points": points})
+            elif shape_type == "obb":
+                shapes_data.append({
+                    "label": label,
+                    "type": "obb",
+                    "points": points,
+                    "rect": shape_data.get("rect", [0, 0, 0, 0]),
+                    "angle": shape_data.get("angle", 0),
+                })
+        return shapes_data
+
+    def _read_xml_annotation_shapes(self, xml_path):
+        if not os.path.exists(xml_path):
+            return []
+        import xml.etree.ElementTree as ET
+        shapes_data = []
+        try:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            for obj in root.findall("object"):
+                name_node = obj.find("name")
+                bndbox = obj.find("bndbox")
+                if name_node is None or bndbox is None:
+                    continue
+                xmin = float(bndbox.find("xmin").text)
+                ymin = float(bndbox.find("ymin").text)
+                xmax = float(bndbox.find("xmax").text)
+                ymax = float(bndbox.find("ymax").text)
+                shapes_data.append({
+                    "label": name_node.text or "",
+                    "type": "rectangle",
+                    "points": [[xmin, ymin], [xmax, ymax]],
+                })
+        except Exception:
+            return []
+        return shapes_data
+
+    def _yolo_lines_for_shapes(self, shapes_data, image_width, image_height):
+        lines = []
+        for shape_data in shapes_data:
+            label = shape_data.get("label", "")
+            if label not in self.class_list:
+                continue
+            class_id = self.class_list.index(label)
+            shape_type = shape_data.get("type", "")
+            points = shape_data.get("points", [])
+            if shape_type == "rectangle" and len(points) == 2:
+                x1, y1 = points[0]
+                x2, y2 = points[1]
+                cx = ((x1 + x2) / 2.0) / image_width
+                cy = ((y1 + y2) / 2.0) / image_height
+                w = abs(x2 - x1) / image_width
+                h = abs(y2 - y1) / image_height
+                lines.append(f"{class_id} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}")
+            elif shape_type in ("polygon", "obb") and len(points) >= 3:
+                flat_pts = []
+                for pt in points:
+                    flat_pts.append(f"{pt[0] / image_width:.6f} {pt[1] / image_height:.6f}")
+                lines.append(f"{class_id} " + " ".join(flat_pts))
+            elif shape_type == "point" and len(points) == 1:
+                cx = points[0][0] / image_width
+                cy = points[0][1] / image_height
+                pw, ph = 0.02, 0.02
+                cx = max(pw / 2, min(1.0 - pw / 2, cx))
+                cy = max(ph / 2, min(1.0 - ph / 2, cy))
+                lines.append(f"{class_id} {cx:.6f} {cy:.6f} {pw:.6f} {ph:.6f}")
+        return lines
+
+    def _append_shape_data_to_annotation_file(self, image_path, new_shapes, format_type):
+        if not new_shapes:
+            return 0
+        pixmap = QPixmap(image_path)
+        if pixmap.isNull():
+            return 0
+        image_width = pixmap.width()
+        image_height = pixmap.height()
+        base_path = os.path.splitext(image_path)[0]
+
+        if format_type == "json":
+            out_path = base_path + ".json"
+            shapes_data = self._read_json_annotation_shapes(out_path) + new_shapes
+            Exporter.save_json(out_path, image_path, image_width, image_height, shapes_data)
+        elif format_type == "xml":
+            out_path = base_path + ".xml"
+            shapes_data = self._read_xml_annotation_shapes(out_path) + new_shapes
+            Exporter.save_xml(out_path, image_path, image_width, image_height, shapes_data)
+        else:
+            out_path = base_path + ".txt"
+            lines = self._yolo_lines_for_shapes(new_shapes, image_width, image_height)
+            if not lines:
+                return 0
+            prefix = ""
+            if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                with open(out_path, "rb") as f:
+                    f.seek(-1, os.SEEK_END)
+                    if f.read(1) != b"\n":
+                        prefix = "\n"
+            with open(out_path, "a", encoding="utf-8") as f:
+                f.write(prefix + "\n".join(lines))
+
+        self.refresh_file_item_status(image_path)
+        return len(new_shapes)
+
+    def _start_batch_prompt_annotation(self, image_paths, prompt, label):
+        if self._is_batch_prompt_running():
+            self._notify("批量智能标注正在进行，请等待当前任务完成", "warning")
+            return
+        if not self.sam_client.model:
+            self._notify("SAM 模型尚未就绪，无法批量智能标注", "warning")
+            return
+
+        deduped_paths = []
+        seen = set()
+        for image_path in image_paths:
+            normalized = os.path.abspath(image_path)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped_paths.append(normalized)
+        if len(deduped_paths) <= 1:
+            return
+
+        self.batch_prompt_queue = [
+            {
+                "image_path": image_path,
+                "prompt": prompt,
+                "label": label,
+                "mode": self.scene.mode,
+                "format": self.current_format,
+            }
+            for image_path in deduped_paths
+        ]
+        self.active_batch_prompt_task = None
+        self.batch_prompt_total = len(self.batch_prompt_queue)
+        self.batch_prompt_completed = 0
+        self.batch_prompt_added = 0
+        self.batch_prompt_failed = 0
+        self._cancel_pending_sam_analysis()
+        self.samPromptBtn.setEnabled(False)
+        self.samSwitch.setChecked(True)
+        self._process_next_batch_prompt_task()
+
+    def _process_next_batch_prompt_task(self):
+        if not self.batch_prompt_queue:
+            total = self.batch_prompt_total
+            added = self.batch_prompt_added
+            failed = self.batch_prompt_failed
+            self.active_batch_prompt_task = None
+            self.batch_prompt_total = 0
+            self.batch_prompt_completed = 0
+            self.batch_prompt_added = 0
+            self.batch_prompt_failed = 0
+            self.apply_sam_control_availability()
+            self._set_status(f"批量智能标注完成：{total} 张图片，新增 {added} 个标注，失败 {failed} 张", "green" if failed == 0 else "orange")
+            if self.current_image_path:
+                self._schedule_current_image_sam_analysis(delay_ms=0)
+            return
+
+        task = self.batch_prompt_queue.pop(0)
+        self.active_batch_prompt_task = task
+        image_path = task["image_path"]
+        step = self.batch_prompt_completed + 1
+        self._set_status(f"批量智能标注中：{step}/{self.batch_prompt_total} - {os.path.basename(image_path)}", "orange")
+        QApplication.processEvents()
+
+        if not os.path.exists(image_path):
+            self._finish_batch_prompt_task(0, failed=True)
+            return
+
+        self.sam_client.set_image(image_path)
+        if not self.sam_client.is_image_ready(image_path):
+            self._finish_batch_prompt_task(0, failed=True)
+            return
+
+        pending_key = (task["prompt"], image_path)
+        self.pending_prompt_targets[pending_key] = {
+            "label": task["label"],
+            "mode": task["mode"],
+            "format": task["format"],
+            "batch": True,
+        }
+        if not self.sam_client.request_text_inference(task["prompt"], image_path):
+            self.pending_prompt_targets.pop(pending_key, None)
+            self._finish_batch_prompt_task(0, failed=True)
+
+    def _finish_batch_prompt_task(self, added_count, failed=False):
+        self.batch_prompt_completed += 1
+        if failed:
+            self.batch_prompt_failed += 1
+        else:
+            self.batch_prompt_added += added_count
+        self.active_batch_prompt_task = None
+        QTimer.singleShot(0, self._process_next_batch_prompt_task)
+
     def trigger_sam_prompt(self):
         if self.scene.mode == CanvasMode.POINT:
             self._notify("点标注模式下不可使用 SAM 提示词提取", "warning")
+            return
+        if self._is_batch_prompt_running():
+            self._notify("批量智能标注正在进行，请等待当前任务完成", "warning")
             return
 
         prompt = self.samPromptInput.currentText().strip()
@@ -1940,6 +2274,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if prompt:
             self.samPromptInput.setEditText(prompt)
             self.add_prompt_alias(label, prompt)
+            checked_paths = self.checked_file_paths()
+            if len(checked_paths) > 1:
+                self._start_batch_prompt_annotation(checked_paths, prompt, label)
+                return
             image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
             if not image_path:
                 self._notify("请先打开图片", "warning")
@@ -1952,7 +2290,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if not self.sam_client.is_image_ready(image_path):
                 self._notify("当前图片 SAM 特征尚未就绪，请稍后再试", "warning")
                 return
-            self.pending_prompt_targets[(prompt, image_path)] = label
+            self.pending_prompt_targets[(prompt, image_path)] = {
+                "label": label,
+                "mode": self.scene.mode,
+                "format": self.current_format,
+                "batch": False,
+            }
             self._set_status(f"正在用提示词“{prompt}”检索，结果将标注为“{label}”...", "orange")
             if not self.sam_client.request_text_inference(prompt, image_path):
                 self.pending_prompt_targets.pop((prompt, image_path), None)
@@ -2119,7 +2462,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.push_state()
         self._set_status(f"参考查找完成，新增 {added} 个相似目标")
 
-    def handle_text_results(self, results, prompt_text, image_path):
+    def _legacy_handle_text_results(self, results, prompt_text, image_path):
         result_image_path = os.path.abspath(image_path) if image_path else ""
         current_image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
         pending_key = (prompt_text, result_image_path)
@@ -2165,7 +2508,68 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.auto_save_annotation()
         self.push_state()
 
-    def show_help_dialog(self):
+    def handle_text_results(self, results, prompt_text, image_path):
+        result_image_path = os.path.abspath(image_path) if image_path else ""
+        current_image_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
+        pending_key = (prompt_text, result_image_path)
+        pending_entry = self.pending_prompt_targets.pop(pending_key, None)
+        if pending_entry is None and self.active_batch_prompt_task:
+            active_path = os.path.abspath(self.active_batch_prompt_task.get("image_path", ""))
+            active_prompt = self.active_batch_prompt_task.get("prompt", "")
+            if active_path == result_image_path and active_prompt == prompt_text:
+                pending_entry = {
+                    "label": self.active_batch_prompt_task.get("label", ""),
+                    "mode": self.active_batch_prompt_task.get("mode", self.scene.mode),
+                    "format": self.active_batch_prompt_task.get("format", self.current_format),
+                    "batch": True,
+                }
+        target_info = self._normalize_pending_prompt_target(pending_entry)
+        is_batch = target_info["batch"]
+        if result_image_path != current_image_path and not is_batch:
+            return
+
+        target_label = target_info["label"] or self.active_label
+        if target_label not in self.class_list:
+            self._set_status(f"提示词“{prompt_text}”已有结果，但没有可用的目标标签", "red")
+            self._notify("请先选择或创建一个标签，再使用提示词检索", "warning")
+            if is_batch:
+                self._finish_batch_prompt_task(0, failed=True)
+            return
+
+        if not results:
+            self._set_status(f"提取完成：未发现与“{prompt_text}”相关的目标", "red")
+            if is_batch:
+                self._finish_batch_prompt_task(0, failed=False)
+            return
+
+        shapes_data = self._prompt_result_shapes(results, target_label, target_info["mode"])
+        if not shapes_data:
+            self._set_status(f"提示词“{prompt_text}”已有结果，但没有可写入的标注形状", "red")
+            if is_batch:
+                self._finish_batch_prompt_task(0, failed=False)
+            return
+
+        self.add_prompt_alias(target_label, prompt_text)
+        added_count = 0
+        if result_image_path == current_image_path:
+            added_count = self._add_shape_data_to_scene(shapes_data)
+            self.update_annotation_panel()
+            self.auto_save_annotation()
+            self.push_state()
+        else:
+            try:
+                added_count = self._append_shape_data_to_annotation_file(result_image_path, shapes_data, target_info["format"])
+            except Exception as e:
+                self._set_status(f"批量写入标注失败：{e}", "red")
+                if is_batch:
+                    self._finish_batch_prompt_task(0, failed=True)
+                return
+
+        self._set_status(f"提取完成：用提示词“{prompt_text}”找到 {len(results)} 个目标，已标注为“{target_label}”", "green")
+        if is_batch:
+            self._finish_batch_prompt_task(added_count, failed=added_count == 0)
+
+    def _legacy_show_help_dialog(self):
         help_text = (
             "快捷键：\n"
             "A / D：上一张 / 下一张\n"
@@ -2202,6 +2606,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "参考查找：\n"
             "先选中一个目标，再点“参考查找”\n"
             "程序会在当前图片中查找相似目标并直接生成同标签标注"
+        )
+        QMessageBox.about(self, "PromptLabel 帮助", help_text)
+
+    def show_help_dialog(self):
+        help_text = (
+            "快捷键：\n"
+            "A / D：上一张 / 下一张\n"
+            "Ctrl + Z：撤销\n"
+            "Ctrl + Y / Ctrl + Shift + Z：重做\n"
+            "Ctrl + A：选择当前标注类型分组内的全部标注\n"
+            "1 - 9：切换当前标签\n"
+            "Q / Space：切换 SAM\n"
+            "R：提交 SAM 提示词\n"
+            "B / P / T / O：矩形 / 多边形 / 点 / 旋转框\n\n"
+            "提示词：\n"
+            "Enter 或“提交”按钮会提交提示词。\n"
+            "多个提示词别名可对应同一个 YOLO 类别。\n"
+            "左侧图片队列勾选多张图片后，提交 SAM 提示词会按当前标签逐张批量智能标注。\n\n"
+            "右键菜单：\n"
+            "画布右键可打开/关闭 SAM、提交提示词、切换当前标签。\n"
+            "右侧标注列表可批量改类别或删除标注。\n"
+            "左侧图片队列可复制文件名、打开目录或删除图片及标注。"
         )
         QMessageBox.about(self, "PromptLabel 帮助", help_text)
 
@@ -2463,9 +2889,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.class_visibility.pop(cls_name, None)
         self.prompt_aliases.pop(cls_name, None)
         self.pending_prompt_targets = {
-            key: label
-            for key, label in self.pending_prompt_targets.items()
-            if label != cls_name
+            key: value
+            for key, value in self.pending_prompt_targets.items()
+            if self._pending_prompt_target_label(value) != cls_name
         }
 
         parent = item.parent()
@@ -2592,6 +3018,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
                 full_path = os.path.join(dir_path, f)
                 item = QListWidgetItem(f)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Unchecked)
                 item.setData(Qt.UserRole, full_path)
                 item.setData(Qt.UserRole + 1, f)
                 item.setToolTip(full_path)
@@ -2831,7 +3259,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if current:
             path = current.data(Qt.UserRole) or current.text()
-            self.pending_prompt_targets.clear()
+            if self._is_batch_prompt_running():
+                self.pending_prompt_targets = {
+                    key: value
+                    for key, value in self.pending_prompt_targets.items()
+                    if isinstance(value, dict) and value.get("batch")
+                }
+            else:
+                self.pending_prompt_targets.clear()
             self.current_image_path = path
             self._update_window_title()
             self.scene.load_image(path)
