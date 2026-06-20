@@ -6,15 +6,13 @@
   <img src="assets/promptlabel_pl.png" alt="PromptLabel 图标" width="96">
 </p>
 
-PromptLabel 是基于 [LabelPaw](https://github.com/luohuabuxiema/LabelPaw) 改造的图像标注工作台。这个分支不是原作者官方版本，重点也不是新增一种标注格式，而是按个人习惯修改界面&小功能。
+PromptLabel 是一个基于 SAM3 的提示词辅助图像标注工作台，重点是用文本提示词快速定位目标，再保存为常见训练集标注格式。项目在界面和基础标注流程上参考并改造了 [LabelPaw](https://github.com/luohuabuxiema/LabelPaw)，不是原作者官方版本。
 
 ## 核心卖点
 
 ### 一个类别，多个提示词
 
-这是 PromptLabel 最重要的改动。
-
-原工具里，类别和提示词的关系不够适合“用不同说法找同一类目标”的工作流。PromptLabel 允许一个 YOLO 类别绑定多个提示词别名，例如：
+这是 PromptLabel 最重要的改动。允许一个 YOLO 类别绑定多个提示词别名，例如：
 
 ```text
 helmet

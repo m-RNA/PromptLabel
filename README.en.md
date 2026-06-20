@@ -6,15 +6,13 @@
   <img src="assets/promptlabel_pl.png" alt="PromptLabel icon" width="96">
 </p>
 
-PromptLabel is an image annotation workbench adapted from [LabelPaw](https://github.com/luohuabuxiema/LabelPaw). This branch is not an official version from the original author. Its focus is not adding another annotation format, but adjusting the interface and small workflow details for practical labeling work.
+PromptLabel is a SAM3-based image annotation workbench for prompt-assisted labeling. Its focus is using text prompts to quickly locate targets, then saving the results in common training dataset annotation formats. The interface and basic annotation workflow are adapted from [LabelPaw](https://github.com/luohuabuxiema/LabelPaw), and this is not an official version from the original author.
 
 ## Core Highlights
 
 ### One Class, Multiple Prompts
 
-This is the most important change in PromptLabel.
-
-In the original tool, the relationship between classes and prompts is not ideal for workflows where different phrases may refer to the same target. PromptLabel allows one YOLO class to bind multiple prompt aliases, for example:
+This is the most important change in PromptLabel. PromptLabel allows one YOLO class to bind multiple prompt aliases, for example:
 
 ```text
 helmet
