@@ -18,12 +18,13 @@ UI_RESOURCE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.pa
 class ToolbarIconSet:
     ICON_FILES = {
         "open": "folder-open.svg",
+        "refresh": "refresh.svg",
         "save": "save.svg",
         "rect": "rectangle.svg",
-        "poly": "polygon.svg",
+        "poly": "pentagon.svg",
         "point": "point.svg",
         "rbox": "rotate.svg",
-        "pulse": "pulse.svg",
+        "pulse": "live.svg",
         "panel_left": "panel-left.svg",
         "panel_right": "panel-right.svg",
         "undo": "undo.svg",
@@ -35,8 +36,8 @@ class ToolbarIconSet:
         "system": "system.svg",
         "light": "sun.svg",
         "dark": "moon.svg",
-        "sam": "brain.svg",
-        "send": "send.svg",
+        "sam": "prompt.svg",
+        "send": "arrow-up.svg",
         "search": "search.svg",
         "format": "format.svg",
     }
@@ -92,8 +93,17 @@ class ToolbarIconSet:
         return pixmap
 
 
+class WheelFormatButton(QPushButton):
+    wheel_delta = Signal(int)
+
+    def wheelEvent(self, event):
+        self.wheel_delta.emit(event.angleDelta().y())
+        event.accept()
+
+
 class FormatSelectorWidget(QWidget):
     format_changed = Signal(str)
+    FORMAT_ITEMS = (("JSON", "json"), ("YOLO", "yolo"), ("XML", "xml"))
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -103,7 +113,7 @@ class FormatSelectorWidget(QWidget):
         layout.setSpacing(6)
         self.label = QLabel("标注格式")
         self.label.setObjectName("toolbarFieldLabel")
-        self.btn = QPushButton("YOLO")
+        self.btn = WheelFormatButton("YOLO")
         self.btn.setObjectName("toolbarSelectButton")
         self.menu = QMenu(self)
         self.act_json = QAction("JSON", self)
@@ -118,6 +128,7 @@ class FormatSelectorWidget(QWidget):
         self.act_json.triggered.connect(lambda: self._on_format_selected("json", "JSON"))
         self.act_yolo.triggered.connect(lambda: self._on_format_selected("yolo", "YOLO"))
         self.act_xml.triggered.connect(lambda: self._on_format_selected("xml", "XML"))
+        self.btn.wheel_delta.connect(self._on_wheel_delta)
 
     def _on_format_selected(self, fmt, text):
         self.btn.setText(text)
@@ -126,6 +137,29 @@ class FormatSelectorWidget(QWidget):
     def set_format(self, fmt):
         text_map = {"json": "JSON", "yolo": "YOLO", "xml": "XML"}
         self.btn.setText(text_map.get(fmt, "YOLO"))
+
+    def wheelEvent(self, event):
+        self._on_wheel_delta(event.angleDelta().y())
+        event.accept()
+
+    def _on_wheel_delta(self, delta_y):
+        current_text = self.btn.text()
+        current_index = next(
+            (index for index, (text, _fmt) in enumerate(self.FORMAT_ITEMS) if text == current_text),
+            1,
+        )
+        step = -1 if delta_y > 0 else 1
+        next_index = (current_index + step) % len(self.FORMAT_ITEMS)
+        text, fmt = self.FORMAT_ITEMS[next_index]
+        self._on_format_selected(fmt, text)
+
+
+class ToolbarSpring(QWidget):
+    def __init__(self, width=16, parent=None):
+        super().__init__(parent)
+        self.setObjectName("toolbarSpring")
+        self.setFixedWidth(width)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
 
 class ThemeSelectorWidget(QWidget):
@@ -287,6 +321,8 @@ class Ui_MainWindow(object):
 
         self.actionOpen = QAction("打开", MainWindow)
         self.actionOpen.setToolTip("打开图片目录")
+        self.actionRefreshFiles = QAction("刷新图片队列", MainWindow)
+        self.actionRefreshFiles.setToolTip("重新扫描当前图片目录并刷新左侧图片队列")
         self.actionSave = QAction("保存", MainWindow)
         self.actionSave.setToolTip("保存当前标注")
         self.actionUndo = QAction("撤销", MainWindow)
@@ -302,7 +338,7 @@ class Ui_MainWindow(object):
         self.actionRBox = QAction("旋转框", MainWindow)
         self.actionRBox.setToolTip("旋转框标注 (O)")
         self.actionBreathingHighlight = QAction("呼吸高亮", MainWindow)
-        self.actionBreathingHighlight.setToolTip("开关标注框内部透明度呼吸高亮")
+        self.actionBreathingHighlight.setToolTip("让当前标签的标注框填充透明度循环变化，便于在密集标注中定位目标")
         self.actionBreathingHighlight.setCheckable(True)
         self.actionBreathingHighlight.setChecked(True)
         self.actionToggleLeftPanel = QAction("隐藏左侧", MainWindow)
@@ -321,29 +357,31 @@ class Ui_MainWindow(object):
         self.actionRect.setChecked(True)
 
         self.toolBar.addAction(self.actionOpen)
+        self.toolBar.addAction(self.actionRefreshFiles)
         self.toolBar.addAction(self.actionSave)
         self.toolBar.addAction(self.actionUndo)
         self.toolBar.addAction(self.actionRedo)
-        self.toolBar.addSeparator()
+        self.toolBar.addWidget(ToolbarSpring())
         self.toolBar.addAction(self.actionRect)
         self.toolBar.addAction(self.actionPoly)
         self.toolBar.addAction(self.actionPoint)
         self.toolBar.addAction(self.actionRBox)
-        self.toolBar.addAction(self.actionBreathingHighlight)
+        self.toolBar.addWidget(ToolbarSpring())
         self.toolbarSpacer = QWidget()
         self.toolbarSpacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.toolBar.addWidget(self.toolbarSpacer)
         self.formatWidget = FormatSelectorWidget()
         self.toolBar.addWidget(self.formatWidget)
-        self.themeWidget = ThemeSelectorWidget(self.icons)
-        self.toolBar.addWidget(self.themeWidget)
-        self.toolBar.addAction(self.actionToggleLeftPanel)
-        self.toolBar.addAction(self.actionToggleRightPanel)
         self.btnDatasetTool = QPushButton("编辑数据集")
         self.btnDatasetTool.setObjectName("toolbarCommandButton")
         self.btnDatasetTool.setIconSize(QSize(24, 24))
         self.btnDatasetTool.setFixedSize(116, 40)
         self.toolBar.addWidget(self.btnDatasetTool)
+        self.toolBar.addAction(self.actionToggleLeftPanel)
+        self.toolBar.addAction(self.actionToggleRightPanel)
+        self.toolBar.addAction(self.actionBreathingHighlight)
+        self.themeWidget = ThemeSelectorWidget(self.icons)
+        self.toolBar.addWidget(self.themeWidget)
         self.btnHelp = QToolButton()
         self.btnHelp.setObjectName("toolbarIconButton")
         self.btnHelp.setToolButtonStyle(Qt.ToolButtonIconOnly)
@@ -493,6 +531,7 @@ class Ui_MainWindow(object):
         self.icons.clear_cache()
         self.actionOpen.setIcon(self.icons.icon("open"))
         self.actionSave.setIcon(self.icons.icon("save"))
+        self.actionRefreshFiles.setIcon(self.icons.icon("refresh"))
         self.actionUndo.setIcon(self.icons.icon("undo"))
         self.actionRedo.setIcon(self.icons.icon("redo"))
         self.actionRect.setIcon(self.icons.icon("rect"))

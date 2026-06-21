@@ -580,6 +580,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def _connect_signals(self):
         self.actionOpen.triggered.connect(self.open_dir)
         self.actionSave.triggered.connect(lambda checked=False: self.save_annotation(self.current_format))
+        self.actionRefreshFiles.triggered.connect(self.refresh_file_queue)
         self.actionUndo.triggered.connect(self.undo)
         self.actionRedo.triggered.connect(self.redo)
         self.actionBreathingHighlight.toggled.connect(self.set_breathing_highlight_enabled)
@@ -670,8 +671,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _update_breathing_action_text(self):
         self.actionBreathingHighlight.setText("呼吸高亮")
+        detail = "呼吸高亮会让当前标签的标注框填充透明度循环变化，便于在密集标注中快速定位目标。"
         self.actionBreathingHighlight.setToolTip(
-            "当前已启用，点击关闭" if self.breathing_highlight_enabled else "当前已关闭，点击启用"
+            f"{detail}\n当前已启用，点击关闭。" if self.breathing_highlight_enabled else f"{detail}\n当前已关闭，点击启用。"
         )
 
     def _update_history_actions(self):
@@ -3466,6 +3468,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._update_window_title()
             self.update_annotation_panel()
         QTimer.singleShot(0, self._update_file_grid_metrics)
+
+    def refresh_file_queue(self):
+        if not self.current_dir or not os.path.isdir(self.current_dir):
+            self._notify("请先打开图片目录", "warning")
+            return
+        current_path = os.path.abspath(self.current_image_path) if self.current_image_path else ""
+        self.populate_file_list(self.current_dir)
+        if current_path:
+            for index in range(self.listFiles.count()):
+                item = self.listFiles.item(index)
+                path = os.path.abspath(item.data(Qt.UserRole) or "")
+                if path == current_path:
+                    self.listFiles.setCurrentRow(index)
+                    break
+        self._notify("图片队列已刷新", "success")
 
     def restore_last_session(self):
         last_dir = self.settings.value("last_dir", "", str)

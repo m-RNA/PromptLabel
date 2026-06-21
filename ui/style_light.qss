@@ -95,6 +95,11 @@ QWidget#toolbarField {
     background: transparent;
 }
 
+QWidget#toolbarSpring {
+    background: transparent;
+    border: 0px;
+}
+
 QToolButton,
 QToolButton#toolbarIconButton,
 QPushButton#toolbarCommandButton,
