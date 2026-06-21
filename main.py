@@ -769,6 +769,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             ("O", lambda: self._set_mode(CanvasMode.RBOX), False),
             ("Q", self.toggle_sam_shortcut, False),
             ("Space", self.toggle_sam_shortcut, False),
+            ("Tab", self.cycle_active_label, False),
         ]
         for sequence, callback, allow_text_focus in shortcut_map:
             self._add_shortcut(sequence, callback, allow_text_focus)
@@ -878,6 +879,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 Qt.Key_O: lambda: self._set_mode(CanvasMode.RBOX),
                 Qt.Key_Q: self.toggle_sam_shortcut,
                 Qt.Key_Space: self.toggle_sam_shortcut,
+                Qt.Key_Tab: self.cycle_active_label,
                 Qt.Key_F1: self.show_help_dialog,
             }
             callback = shortcut_map.get(key)
@@ -951,6 +953,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def set_label_by_index(self, index):
         if 0 <= index < len(self.class_list):
             self.set_active_label(self.class_list[index])
+
+    def cycle_active_label(self):
+        if not self.class_list:
+            return
+        if self.active_label in self.class_list:
+            next_index = (self.class_list.index(self.active_label) + 1) % len(self.class_list)
+        else:
+            next_index = 0
+        self.set_active_label(self.class_list[next_index])
 
     def previous_image(self):
         current_idx = self.listFiles.currentRow()
@@ -3074,7 +3085,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "Ctrl + Z：撤销\n"
             "Ctrl + Y / Ctrl + Shift + Z：重做\n"
             "Ctrl + A：图片队列有焦点时全选图片，否则选择当前标注类型分组内的全部标注\n"
-            "1 - 9：切换当前标签\n"
+            "1 - 9 / Tab：切换当前标签\n"
             "Q / Space：切换 SAM\n"
             "R：提交 SAM 提示词\n"
             "B / P / T / O：矩形 / 多边形 / 点 / 旋转框\n\n"
