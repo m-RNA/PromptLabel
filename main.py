@@ -454,7 +454,7 @@ class LabelVisibilityItemDelegate(QStyledItemDelegate):
         style.drawControl(QStyle.CE_ItemViewItem, content_option, painter, widget)
 
         visible = item_option.checkState == Qt.Checked
-        color = item_option.palette.highlightedText().color() if item_option.state & QStyle.State_Selected else item_option.palette.text().color()
+        color = item_option.palette.text().color()
         pixmap = self.icons.pixmap("visible" if visible else "invisible", 22, color)
         icon_rect = QRectF(
             check_rect.center().x() - 11,
@@ -800,6 +800,29 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         focused = QApplication.focusWidget()
         return focused in (self.listFiles, self.listFiles.viewport())
 
+    def _class_item_icon_rect(self, item):
+        rect = self.listClasses.visualItemRect(item)
+        if not rect.isValid():
+            return QRectF()
+        depth = 0
+        parent = item.parent()
+        while parent is not None:
+            depth += 1
+            parent = parent.parent()
+        x = rect.left() + 4 + depth * self.listClasses.indentation()
+        if item.childCount() > 0:
+            x += self.listClasses.indentation()
+        return QRectF(x, rect.center().y() - 11, 22, 22)
+
+    def _handle_class_tree_double_click(self, event):
+        item = self.listClasses.itemAt(event.position().toPoint())
+        if item is None or item.data(0, Qt.UserRole + 1) != "class":
+            return False
+        if not self._class_item_icon_rect(item).contains(event.position()):
+            return False
+        self.change_class_color(item)
+        return True
+
     def select_all_by_focus(self):
         if self._file_queue_has_focus():
             self.select_all_file_queue_items()
@@ -809,6 +832,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def eventFilter(self, watched, event):
         if watched is self.listFiles.viewport() and event.type() == QEvent.MouseButtonPress:
             if self._handle_file_queue_mouse_press(event):
+                return True
+        if watched is self.listClasses.viewport() and event.type() == QEvent.MouseButtonDblClick:
+            if self._handle_class_tree_double_click(event):
                 return True
         if event.type() == QEvent.KeyPress and self._handle_file_queue_key_press(event):
             return True
@@ -1102,14 +1128,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._update_file_grid_metrics()
 
     def _make_color_icon(self, color_value):
-        pixmap = QPixmap(12, 12)
+        pixmap = QPixmap(22, 22)
         pixmap.fill(Qt.transparent)
         color = QColor(color_value)
         painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing, False)
-        painter.setPen(QPen(QColor(90, 90, 90)))
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(QPen(QColor(90, 90, 90), 1))
         painter.setBrush(QBrush(color))
-        painter.drawRect(1, 1, 10, 10)
+        painter.drawRoundedRect(QRectF(3, 3, 16, 16), 4, 4)
         painter.end()
         return QIcon(pixmap)
 
@@ -3059,7 +3085,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             "右键菜单：\n"
             "画布右键可打开/关闭 SAM、提交提示词、切换当前标签。\n"
             "右侧标注列表可批量改类别或删除标注。\n"
-            "左侧图片队列可复制文件名、打开目录或删除图片及标注。"
+            "左侧图片队列可复制文件名、打开目录或删除图片及标注。\n\n"
+            "项目链接：\n"
+            "当前仓库：https://github.com/m-RNA/PromptLabel\n"
+            "上游仓库：https://github.com/luohuabuxiema/LabelPaw\n"
+            "当前仓库是在上游 LabelPaw 的基础上继续开发。"
         )
         QMessageBox.about(self, "PromptLabel 帮助", help_text)
 
@@ -3215,20 +3245,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         item = self.listClasses.itemAt(pos)
         menu = QMenu(self)
         new_class_action = menu.addAction("新增标签")
-        current_action = add_prompt_action = search_prompt_action = rename_prompt_action = delete_prompt_action = None
+        add_prompt_action = search_prompt_action = rename_prompt_action = delete_prompt_action = None
         toggle_action = color_action = delete_class_action = None
 
         kind = item.data(0, Qt.UserRole + 1) if item else ""
         if item is not None:
             menu.addSeparator()
             if kind == "class":
-                current_action = menu.addAction("设为当前标签")
                 add_prompt_action = menu.addAction("新增该类提示词")
                 visible = item.checkState(0) == Qt.Checked
                 toggle_action = menu.addAction("隐藏该标签" if visible else "显示该标签")
                 color_action = menu.addAction("修改颜色")
                 delete_class_action = menu.addAction("删除标签")
             elif kind == "prompt":
+                add_prompt_action = menu.addAction("新增该类提示词")
                 search_prompt_action = menu.addAction("用该提示词检索")
                 rename_prompt_action = menu.addAction("重命名提示词")
                 delete_prompt_action = menu.addAction("删除提示词")
@@ -3236,8 +3266,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if action == new_class_action:
             self.create_class_from_input()
-        elif action == current_action:
-            self.set_active_label(item.data(0, Qt.UserRole))
         elif action == add_prompt_action:
             self.create_prompt_alias_for_item(item)
         elif action == toggle_action:
@@ -3347,7 +3375,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._notify(f"已删除标签“{cls_name}”", "success")
 
     def create_prompt_alias_for_item(self, item):
-        label = item.data(0, Qt.UserRole)
+        if item.data(0, Qt.UserRole + 1) == "prompt":
+            label = item.data(0, Qt.UserRole + 2)
+        else:
+            label = item.data(0, Qt.UserRole)
         text, ok = QInputDialog.getText(self, "新增提示词", f"为“{label}”输入提示词：")
         text = text.strip() if ok and text else ""
         if text:

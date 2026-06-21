@@ -368,6 +368,7 @@ class Ui_MainWindow(object):
         self.toolBar.addAction(self.actionRBox)
         self.toolBar.addWidget(ToolbarSpring())
         self.toolbarSpacer = QWidget()
+        self.toolbarSpacer.setObjectName("toolbarFlexSpacer")
         self.toolbarSpacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.toolBar.addWidget(self.toolbarSpacer)
         self.formatWidget = FormatSelectorWidget()
@@ -472,8 +473,6 @@ class Ui_MainWindow(object):
         self.activeLabelHeader = QLabel("当前标签: 未选择")
         self.activeLabelHeader.setObjectName("activeLabelHeader")
         self.activeLabelHeader.setVisible(False)
-        self.labelTitle = QLabel("标签")
-        self.labelTitle.setObjectName("rightSectionTitle")
 
         self.rightLayout.addWidget(self.annotationTitle)
 
@@ -481,9 +480,9 @@ class Ui_MainWindow(object):
         self.labelPanelLayout = QVBoxLayout(self.labelPanel)
         self.labelPanelLayout.setContentsMargins(0, 0, 0, 0)
         self.labelPanelLayout.setSpacing(6)
-        self.labelPanelLayout.addWidget(self.labelTitle)
         self.listClasses = QTreeWidget()
         self.listClasses.setHeaderHidden(True)
+        self.listClasses.setIconSize(QSize(22, 22))
         self.listClasses.setContextMenuPolicy(Qt.CustomContextMenu)
         self.labelPanelLayout.addWidget(self.listClasses)
 
