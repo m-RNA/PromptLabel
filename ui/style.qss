@@ -54,6 +54,12 @@ QLabel#dialogTitle {
     padding-bottom: 4px;
 }
 
+QLabel#helpLinks {
+    color: #aab6c8;
+    font-family: "Microsoft YaHei UI";
+    font-size: 14px;
+}
+
 QLabel#mutedText {
     color: #94a3b8;
     font-size: 11px;

@@ -3084,7 +3084,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def _help_project_links_html(self):
         return (
-            '<div style="line-height:1.5;">'
+            '<div align="center" style="font-family: Microsoft YaHei UI; font-size: 14px; line-height: 1.55;">'
             '<b>项目链接：</b>'
             '<a href="https://github.com/m-RNA/PromptLabel">当前仓库</a>'
             '&nbsp;&nbsp;|&nbsp;&nbsp;'
@@ -3127,18 +3127,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if help_html:
             links_label = QLabel(help_html)
-            links_label.setObjectName("mutedText")
+            links_label.setObjectName("helpLinks")
+            links_font = QFont(APP_UI_FONT_FAMILY, 11)
+            links_font.setHintingPreference(QFont.PreferFullHinting)
+            links_label.setFont(links_font)
             links_label.setTextFormat(Qt.RichText)
             links_label.setOpenExternalLinks(True)
             links_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
             links_label.setWordWrap(True)
+            links_label.setAlignment(Qt.AlignCenter)
             layout.addWidget(links_label)
 
         button_row = QHBoxLayout()
         close_btn = QPushButton("\u5173\u95ed")
+        close_btn.setMinimumWidth(150)
         close_btn.clicked.connect(dialog.accept)
         button_row.addStretch()
         button_row.addWidget(close_btn)
+        button_row.addStretch()
         layout.addLayout(button_row)
 
         dialog.exec()
