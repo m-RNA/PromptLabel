@@ -570,6 +570,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.apply_theme(self.current_theme)
         self.update_active_label_indicator()
         self.load_sam_model_or_prompt()
+        self._schedule_startup_help_once()
         self.restore_last_session()
 
     def _connect_signals(self):
@@ -1697,8 +1698,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
         self.load_sam_model_path(model_path)
         self._set_status(f"正在加载 SAM3 模型: {os.path.basename(model_path)}", "info")
-        if not self._settings_bool("shortcut_guide_seen", False):
-            QTimer.singleShot(250, lambda: self.show_shortcut_guide(mark_seen=True))
 
     def _build_dark_palette(self):
         palette = QPalette(self._default_palette)
@@ -3058,13 +3057,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self._finish_batch_prompt_task(added_count, failed=added_count == 0)
 
     def _shortcut_guide_image_path(self):
-        return os.path.join(RESOURCE_DIR, "assets", "shortcut.jpg")
+        candidates = [
+            os.path.join(RESOURCE_DIR, "assets", "shortcut.jpg"),
+            os.path.join(APP_DIR, "assets", "shortcut.jpg"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "shortcut.jpg"),
+        ]
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+        return candidates[0]
+
+    def _help_project_links_text(self):
+        return (
+            "项目链接：\n"
+            "当前仓库：https://github.com/m-RNA/PromptLabel\n"
+            "上游仓库：https://github.com/luohuabuxiema/LabelPaw\n"
+            "当前仓库是在上游 LabelPaw 的基础上继续开发。"
+        )
+
+    def _schedule_startup_help_once(self):
+        if not self._settings_bool("startup_help_seen", False):
+            QTimer.singleShot(
+                0,
+                lambda: self.show_shortcut_guide(mark_seen=True, help_text=self._help_project_links_text()),
+            )
 
     def show_shortcut_guide(self, mark_seen=False, help_text=None):
         dialog = QDialog(self)
         dialog.setWindowTitle("PromptLabel")
         dialog.setModal(True)
-        dialog.resize(980, 760 if help_text else 610)
+        dialog.resize(980, 720 if help_text else 610)
 
         layout = QVBoxLayout(dialog)
         title = QLabel("\u5feb\u6377\u952e\u901f\u89c8")
@@ -3083,7 +3105,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if help_text:
             help_box = QTextEdit()
             help_box.setReadOnly(True)
-            help_box.setMinimumHeight(210)
+            help_box.setMinimumHeight(120)
             help_box.setPlainText(help_text)
             layout.addWidget(help_box)
 
@@ -3096,11 +3118,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         dialog.exec()
         if mark_seen:
-            self.settings.setValue("shortcut_guide_seen", True)
+            self.settings.setValue("startup_help_seen", True)
             self.settings.sync()
 
     def show_help_dialog(self):
-        self.show_shortcut_guide()
+        self.show_shortcut_guide(help_text=self._help_project_links_text())
 
     def on_sam_toggled(self, checked):
         self.scene.set_sam_enabled(checked)

@@ -19,6 +19,7 @@ block_cipher = None
 datas = [
     ("assets/promptlabel_pl.ico", "assets"),
     ("assets/promptlabel_pl.png", "assets"),
+    ("assets/shortcut.jpg", "assets"),
     ("ui/*.qss", "ui"),
     ("ui/*.png", "ui"),
     ("ui/icons/fluent/*.svg", "ui/icons/fluent"),
