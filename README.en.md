@@ -18,18 +18,22 @@ This is the most important change in PromptLabel. PromptLabel allows one YOLO cl
 helmet
 ├─ helmet
 ├─ hard hat
-└─ safety helmet
+└─ ...
 ```
 
 When using SAM text prompts, you can search for targets with any alias. Saving and exporting still write only the same YOLO class, such as `helmet`. This keeps prompt wording flexible without polluting the training dataset classes.
 
 ### Fewer Mouse Clicks, Faster Shortcuts
 
-PromptLabel moves frequent actions in continuous annotation to the keyboard: `A` / `D` switch images, `1` - `9` switch the active class, `Q` / `Space` toggle SAM, and `R` submits the prompt. Combined with auto-save, status-bar feedback, and the annotation list on the right, common workflows can be completed with fewer mouse clicks and fewer interruptions.
+PromptLabel moves frequent actions in continuous annotation to the keyboard: `A` / `D` switch images, `1` - `9` or `Tab` switch the active class, `Q` / `Space` toggle SAM, and `R` submits the prompt. Combined with auto-save, status-bar feedback, and the annotation list on the right, common workflows can be completed with fewer mouse clicks and fewer interruptions.
+
+<p align="center">
+  <img src="assets/shortcut_en.jpg" alt="PromptLabel shortcut overview" width="900">
+</p>
 
 ### Left-Side Image Gallery
 
-After opening a directory, images in the current folder are shown as an image queue on the left. Thumbnails, file names, and the total image count are visible directly. Continuous annotation no longer requires repeatedly opening the file picker, making it easier to scan through a whole folder quickly.
+After opening a directory, images in the current folder are shown as an image queue on the left. Thumbnails, file names, and the total image count are visible directly. Queue items include checkboxes, so multiple images can be selected and submitted to prompt-based batch annotation at once. Continuous annotation no longer requires repeatedly opening the file picker, making it easier to scan through a whole folder quickly.
 
 ### Compact Annotation Workbench
 
@@ -37,9 +41,15 @@ The interface is reorganized into a left image queue, central canvas, right clas
 
 ### Screenshots
 
-The main interface is organized around "image queue - canvas - management panel - SAM workflow", suitable for continuous image switching, annotation, and review:
+The main interface is organized around "image queue - canvas - management panel - SAM workflow", suitable for continuous image switching, annotation, and review. Dataset processing and annotation management keep the same compact information density, so cleanup, labeling, review, and export can stay in one tool.
 
-![PromptLabel main interface](assets/readme_main_ui.png)
+| Main workbench | Dataset processing |
+| --- | --- |
+| ![PromptLabel main interface](assets/readme_main_ui.png) | ![PromptLabel dataset tool](assets/readme_dataset_tool.png) |
+
+| Class and annotation management | Shortcut overview |
+| --- | --- |
+| ![PromptLabel annotation management](assets/readme_annotation_tabs.png) | ![PromptLabel shortcut overview](assets/shortcut_en.jpg) |
 
 ### Smaller Quality-of-Life Improvements
 
@@ -49,7 +59,7 @@ The main interface is organized around "image queue - canvas - management panel 
 - The class tree directly manages prompt aliases, colors, and show/hide state.
 - The annotation list is grouped by rectangle, polygon, point, and rotated box, with selection, batch relabeling, and deletion support.
 - Canvas right-click supports switching the active label, batch-changing selected annotation classes, and toggling SAM.
-- Common actions have keyboard paths, reducing mouse clicks when switching images, modes, classes, and submitting prompts.
+- Common actions have keyboard paths, reducing mouse clicks when switching images, modes, classes, selecting annotations, editing labels, deleting annotations, and submitting prompts.
 - The status bar shows the total annotation count and per-class counts for the current annotation mode.
 - Image switching debounces SAM analysis, so continuously pressing `A` / `D` does not run the model immediately for every image.
 - Fewer toast messages are used; more information is placed in the status bar to avoid covering the canvas.
@@ -61,7 +71,7 @@ The main interface is organized around "image queue - canvas - management panel 
 - Annotation types: rectangle, polygon, point, rotated box
 - SAM3 assistance: point selection, text prompts, reference search
 - Class management: add, edit, delete, color, show/hide, prompt aliases
-- Image directory: thumbnail queue, image count statistics, previous/next image, right-click image and annotation deletion
+- Image directory: thumbnail queue, multi-select checkboxes, image count statistics, previous/next image, batch prompt annotation, and right-click image/annotation deletion
 - Common operations: auto-save, undo, redo, delete, batch selection, batch annotation class changes, current mode and annotation count statistics
 - Dataset processing: train/validation/test split, JSON/XML to YOLO, JSON to U-Net Mask
 
