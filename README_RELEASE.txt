@@ -1,4 +1,4 @@
-PromptLabel v0.1.0-beta.1
+PromptLabel v0.1.0-beta.2
 ==========================
 
 This is a beta Windows portable package for PromptLabel.
