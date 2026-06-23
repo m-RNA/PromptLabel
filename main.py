@@ -181,6 +181,21 @@ def _create_startup_splash_pixmap(resolved_theme=None):
     return pixmap
 
 
+def _finish_startup_splash(window=None):
+    global _STARTUP_SPLASH
+    splash = _STARTUP_SPLASH
+    if splash is None:
+        return
+    try:
+        if window is not None:
+            splash.finish(window)
+        else:
+            splash.close()
+    except RuntimeError:
+        pass
+    _STARTUP_SPLASH = None
+
+
 def _show_startup_splash():
     global _STARTUP_APP, _STARTUP_SPLASH, _STARTUP_ICON
 
@@ -3067,26 +3082,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 return path
         return candidates[0]
 
-    def _help_project_links_text(self):
+    def _help_project_links_html(self):
         return (
-            "项目链接：\n"
-            "当前仓库：https://github.com/m-RNA/PromptLabel\n"
-            "上游仓库：https://github.com/luohuabuxiema/LabelPaw\n"
-            "当前仓库是在上游 LabelPaw 的基础上继续开发。"
+            '<div style="line-height:1.5;">'
+            '<b>项目链接：</b>'
+            '<a href="https://github.com/m-RNA/PromptLabel">当前仓库</a>'
+            '&nbsp;&nbsp;|&nbsp;&nbsp;'
+            '<a href="https://github.com/luohuabuxiema/LabelPaw">上游 LabelPaw</a>'
+            '<br><span style="color:#8a93a6;">当前仓库是在上游 LabelPaw 的基础上继续开发。</span>'
+            '</div>'
         )
+
 
     def _schedule_startup_help_once(self):
         if not self._settings_bool("startup_help_seen", False):
             QTimer.singleShot(
                 0,
-                lambda: self.show_shortcut_guide(mark_seen=True, help_text=self._help_project_links_text()),
+                self._show_startup_help_once,
             )
 
-    def show_shortcut_guide(self, mark_seen=False, help_text=None):
+    def _show_startup_help_once(self):
+        _finish_startup_splash(self)
+        self.show_shortcut_guide(mark_seen=True, help_html=self._help_project_links_html())
+
+    def show_shortcut_guide(self, mark_seen=False, help_html=None):
         dialog = QDialog(self)
         dialog.setWindowTitle("PromptLabel")
         dialog.setModal(True)
-        dialog.resize(980, 720 if help_text else 610)
+        dialog.resize(980, 650 if help_html else 610)
 
         layout = QVBoxLayout(dialog)
         title = QLabel("\u5feb\u6377\u952e\u901f\u89c8")
@@ -3102,12 +3125,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             image_label.setPixmap(pixmap.scaled(920, 460, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         layout.addWidget(image_label)
 
-        if help_text:
-            help_box = QTextEdit()
-            help_box.setReadOnly(True)
-            help_box.setMinimumHeight(120)
-            help_box.setPlainText(help_text)
-            layout.addWidget(help_box)
+        if help_html:
+            links_label = QLabel(help_html)
+            links_label.setObjectName("mutedText")
+            links_label.setTextFormat(Qt.RichText)
+            links_label.setOpenExternalLinks(True)
+            links_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            links_label.setWordWrap(True)
+            layout.addWidget(links_label)
 
         button_row = QHBoxLayout()
         close_btn = QPushButton("\u5173\u95ed")
@@ -3122,7 +3147,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.settings.sync()
 
     def show_help_dialog(self):
-        self.show_shortcut_guide(help_text=self._help_project_links_text())
+        self.show_shortcut_guide(help_html=self._help_project_links_html())
 
     def on_sam_toggled(self, checked):
         self.scene.set_sam_enabled(checked)
@@ -4128,5 +4153,5 @@ if __name__ == "__main__":
     window.show()
     _apply_windows_window_icon(window)
     app.processEvents()
-    QTimer.singleShot(260, lambda: splash.finish(window))
+    QTimer.singleShot(260, lambda: _finish_startup_splash(window))
     sys.exit(app.exec())
