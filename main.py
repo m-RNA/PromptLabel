@@ -124,18 +124,12 @@ def _apply_windows_window_icon(widget):
 
 def _read_startup_theme_key():
     settings = QSettings(SETTINGS_PATH, QSettings.IniFormat)
-    theme_key = settings.value("theme", "system", str)
-    return theme_key if theme_key in ("system", "light", "dark") else "system"
+    theme_key = settings.value("theme", "dark", str)
+    return theme_key if theme_key in ("light", "dark") else "dark"
 
 
 def _resolved_startup_theme(theme_key):
-    if theme_key in ("light", "dark"):
-        return theme_key
-    try:
-        color_scheme = _STARTUP_APP.styleHints().colorScheme() if _STARTUP_APP else Qt.ColorScheme.Unknown
-        return "dark" if color_scheme == Qt.ColorScheme.Dark else "light"
-    except Exception:
-        return "light"
+    return theme_key if theme_key in ("light", "dark") else "dark"
 
 
 def _create_startup_splash_pixmap(resolved_theme=None):
@@ -502,7 +496,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.current_format not in ("json", "yolo", "xml"):
             self.current_format = "yolo"
         self._format_changed_by_user = False
-        self.current_theme = self.settings.value("theme", "system", str)
+        self.current_theme = self.settings.value("theme", "dark", str)
+        if self.current_theme not in ("light", "dark"):
+            self.current_theme = "dark"
         self.breathing_highlight_enabled = self._settings_bool("breathing_highlight", True)
         self.active_label = self.settings.value("active_label", "", str)
         self.last_edit_label_index = self.settings.value("last_edit_label_index", 0, int)
@@ -571,7 +567,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self._update_history_actions()
         self._update_sam_switch_text()
         self._set_mode(CanvasMode.RECT)
-        self._connect_system_theme_signal()
         self.apply_theme(self.current_theme)
         self.update_active_label_indicator()
         self.load_sam_model_or_prompt()
@@ -1702,17 +1697,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             return
         self.load_sam_model_path(model_path)
         self._set_status(f"正在加载 SAM3 模型: {os.path.basename(model_path)}", "info")
-
-    def _connect_system_theme_signal(self):
-        app = QApplication.instance()
-        try:
-            app.styleHints().colorSchemeChanged.connect(self.on_system_color_scheme_changed)
-        except Exception:
-            pass
-
-    def on_system_color_scheme_changed(self, *_args):
-        if self.current_theme == "system":
-            self.apply_theme("system", persist=False)
+        if not self._settings_bool("shortcut_guide_seen", False):
+            QTimer.singleShot(250, lambda: self.show_shortcut_guide(mark_seen=True))
 
     def _build_dark_palette(self):
         palette = QPalette(self._default_palette)
@@ -1777,18 +1763,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         ui_resource_dir = os.path.join(RESOURCE_DIR, "ui").replace("\\", "/")
         return qss.replace("url(ui/", f"url({ui_resource_dir}/")
 
-    def _resolved_system_theme(self):
-        app = QApplication.instance()
-        try:
-            scheme = app.styleHints().colorScheme()
-            return "dark" if scheme == Qt.ColorScheme.Dark else "light"
-        except Exception:
-            return "light"
-
     def apply_theme(self, theme_key, persist=True):
+        if theme_key not in ("light", "dark"):
+            theme_key = "dark"
         self.current_theme = theme_key
         app = QApplication.instance()
-        resolved = self._resolved_system_theme() if theme_key == "system" else theme_key
+        resolved = theme_key
         if resolved == "dark":
             app.setPalette(self._build_dark_palette())
             app.setStyleSheet(self._load_theme_stylesheet("dark"))
@@ -2480,7 +2460,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def open_dataset_tool(self):
         try:
             if not hasattr(self, 'dataset_window') or self.dataset_window is None:
-                resolved = self._resolved_system_theme() if self.current_theme == "system" else self.current_theme
+                resolved = self.current_theme if self.current_theme in ("light", "dark") else "dark"
                 self.dataset_window = DatasetToolWindow(resolved)
             # 显示窗口
             self.dataset_window.show()
@@ -3077,31 +3057,50 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if is_batch:
             self._finish_batch_prompt_task(added_count, failed=added_count == 0)
 
+    def _shortcut_guide_image_path(self):
+        return os.path.join(RESOURCE_DIR, "assets", "shortcut.jpg")
+
+    def show_shortcut_guide(self, mark_seen=False, help_text=None):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("PromptLabel")
+        dialog.setModal(True)
+        dialog.resize(980, 760 if help_text else 610)
+
+        layout = QVBoxLayout(dialog)
+        title = QLabel("\u5feb\u6377\u952e\u901f\u89c8")
+        title.setObjectName("dialogTitle")
+        layout.addWidget(title)
+
+        image_label = QLabel()
+        image_label.setAlignment(Qt.AlignCenter)
+        pixmap = QPixmap(self._shortcut_guide_image_path())
+        if pixmap.isNull():
+            image_label.setText("assets/shortcut.jpg")
+        else:
+            image_label.setPixmap(pixmap.scaled(920, 460, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        layout.addWidget(image_label)
+
+        if help_text:
+            help_box = QTextEdit()
+            help_box.setReadOnly(True)
+            help_box.setMinimumHeight(210)
+            help_box.setPlainText(help_text)
+            layout.addWidget(help_box)
+
+        button_row = QHBoxLayout()
+        close_btn = QPushButton("\u5173\u95ed")
+        close_btn.clicked.connect(dialog.accept)
+        button_row.addStretch()
+        button_row.addWidget(close_btn)
+        layout.addLayout(button_row)
+
+        dialog.exec()
+        if mark_seen:
+            self.settings.setValue("shortcut_guide_seen", True)
+            self.settings.sync()
+
     def show_help_dialog(self):
-        help_text = (
-            "快捷键：\n"
-            "A / D：上一张 / 下一张\n"
-            "Ctrl + Z：撤销\n"
-            "Ctrl + Y / Ctrl + Shift + Z：重做\n"
-            "Ctrl + A：图片队列有焦点时全选图片，否则选择当前标注类型分组内的全部标注\n"
-            "1 - 9 / Tab：切换当前标签\n"
-            "Q / Space：切换 SAM\n"
-            "R：提交 SAM 提示词\n"
-            "B / P / T / O：矩形 / 多边形 / 点 / 旋转框\n\n"
-            "提示词：\n"
-            "Enter 或“提交”按钮会提交提示词。\n"
-            "多个提示词别名可对应同一个 YOLO 类别。\n"
-            "左侧图片队列勾选多张图片后，提交 SAM 提示词会按当前标签逐张批量智能标注。\n\n"
-            "右键菜单：\n"
-            "画布右键可打开/关闭 SAM、提交提示词、切换当前标签。\n"
-            "右侧标注列表可批量改类别或删除标注。\n"
-            "左侧图片队列可复制文件名、打开目录或删除图片及标注。\n\n"
-            "项目链接：\n"
-            "当前仓库：https://github.com/m-RNA/PromptLabel\n"
-            "上游仓库：https://github.com/luohuabuxiema/LabelPaw\n"
-            "当前仓库是在上游 LabelPaw 的基础上继续开发。"
-        )
-        QMessageBox.about(self, "PromptLabel 帮助", help_text)
+        self.show_shortcut_guide()
 
     def on_sam_toggled(self, checked):
         self.scene.set_sam_enabled(checked)

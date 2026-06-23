@@ -33,7 +33,6 @@ class ToolbarIconSet:
         "dataset": "dataset.svg",
         "visible": "eye.svg",
         "invisible": "eye-off.svg",
-        "system": "system.svg",
         "light": "sun.svg",
         "dark": "moon.svg",
         "sam": "prompt.svg",
@@ -165,17 +164,16 @@ class ToolbarSpring(QWidget):
 class ThemeSelectorWidget(QWidget):
     theme_changed = Signal(str)
 
-    THEME_ORDER = ("system", "light", "dark")
+    THEME_ORDER = ("light", "dark")
     THEME_TEXT = {
-        "system": "自动主题",
-        "light": "浅色主题",
-        "dark": "深色主题",
+        "light": "\u6d45\u8272\u4e3b\u9898",
+        "dark": "\u6df1\u8272\u4e3b\u9898",
     }
 
     def __init__(self, icons=None, parent=None):
         super().__init__(parent)
         self.icons = icons or ToolbarIconSet()
-        self._theme_key = "system"
+        self._theme_key = "dark"
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.btn = QToolButton()
@@ -195,7 +193,7 @@ class ThemeSelectorWidget(QWidget):
 
     def set_theme(self, theme_key):
         if theme_key not in self.THEME_ORDER:
-            theme_key = "system"
+            theme_key = "dark"
         self._theme_key = theme_key
         self.btn.setIcon(self.icons.icon(theme_key))
         self.btn.setToolTip(self.THEME_TEXT[theme_key])

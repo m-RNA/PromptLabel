@@ -2,11 +2,12 @@
 
 **语言**：中文 | [English](README.en.md)
 
-<p align="center">
-  <img src="assets/promptlabel_pl.png" alt="PromptLabel 图标" width="96">
-</p>
-
-PromptLabel 是一个基于 SAM3 的提示词辅助图像标注工作台。它把“提示词找目标”和“训练集类别管理”分开：你可以用多个提示词别名找同一个目标，但导出时仍然保持干净、稳定的 YOLO 类别。
+<table>
+<tr>
+<td width="110" align="center"><img src="assets/promptlabel_pl.png" alt="PromptLabel 图标" width="86"></td>
+<td>PromptLabel 是一个基于 SAM3 的提示词辅助图像标注工作台：用多个提示词别名快速找到同一类目标，导出时仍保持干净、稳定的 YOLO 类别。</td>
+</tr>
+</table>
 
 项目在界面和基础标注流程上参考并改造了 [LabelPaw](https://github.com/luohuabuxiema/LabelPaw)，不是原作者官方版本。
 
@@ -27,13 +28,13 @@ helmet
 
 ### 连续标注更少打断
 
-常用动作都有键盘入口：`A` / `D` 切换图片，`1` - `9` 或 `Tab` 切换类别，`Q` / `Space` 开关 SAM，`R` 提交提示词。配合自动保存和状态栏反馈，连续扫图时不需要频繁打断当前节奏。
-
-### 紧凑工作台
-
-界面围绕左侧图片队列、中央画布、右侧类别/标注管理、底部 SAM 工作流组织。打开目录后可以直接浏览缩略图、勾选多张图片批量提交提示词，并在右侧完成类别、提示词别名、颜色和可见性管理。
+<p align="center">
+  <img src="assets/shortcut.jpg" alt="PromptLabel 快捷键速览" width="900">
+</p>
 
 ## 界面截图
+
+界面围绕左侧图片队列、中央画布、右侧类别/标注管理、底部 SAM 工作流组织。打开目录后可以直接浏览缩略图、勾选多张图片批量提交提示词，并在右侧完成类别、提示词别名、颜色和可见性管理。
 
 ![PromptLabel 主界面](assets/readme_main_ui.png)
 
@@ -66,6 +67,8 @@ models/sam3.pt
 
 `sam3.pt` 属于 SAM Materials，受 `SAM_LICENSE.txt` 约束。使用或再分发前请确认遵守 Meta 的 SAM License。
 
+![SAM 模型查找](assets/find_sam.jpg)
+
 ## 运行方式
 
 ### Beta 便携包
@@ -94,11 +97,6 @@ python -m venv .venv311
 
 输出目录为 `dist\PromptLabel\`。Release 包不要包含 `models\sam3.pt`、`.sam3_tmp\`、日志、缓存或本地测试图片。
 
-## 快捷键
-
-<p align="center">
-  <img src="assets/shortcut.jpg" alt="PromptLabel 快捷键速览" width="900">
-</p>
 
 ## 自动保存
 

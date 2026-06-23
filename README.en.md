@@ -2,11 +2,12 @@
 
 **Language**: [中文](README.md) | English
 
-<p align="center">
-  <img src="assets/promptlabel_pl.png" alt="PromptLabel icon" width="96">
-</p>
-
-PromptLabel is a SAM3-based prompt-assisted image annotation workbench. It separates “prompt wording” from “training classes”: you can use multiple prompt aliases to find the same target while keeping exported YOLO classes clean and stable.
+<table>
+<tr>
+<td width="110" align="center"><img src="assets/promptlabel_pl.png" alt="PromptLabel icon" width="86"></td>
+<td>PromptLabel is a SAM3-assisted annotation workbench: use multiple prompt aliases to find the same target class while exports stay clean, stable, and YOLO-ready.</td>
+</tr>
+</table>
 
 The interface and basic annotation workflow are adapted from [LabelPaw](https://github.com/luohuabuxiema/LabelPaw). This is not an official version from the original author.
 
@@ -18,22 +19,22 @@ One training class can have multiple prompt aliases, for example:
 
 ```text
 helmet
-├─ helmet
-├─ hard hat
-└─ ...
+- helmet
+- hard hat
+- ...
 ```
 
 When using SAM text prompts, any alias can be used to find the target. Saving and exporting still write only the `helmet` class, so the dataset class list stays clean.
 
-### Faster Continuous Annotation
+### Shortcut-First Labeling
 
-Frequent actions have keyboard paths: `A` / `D` switch images, `1` - `9` or `Tab` switch classes, `Q` / `Space` toggles SAM, and `R` submits the prompt. Together with auto-save and status-bar feedback, this keeps continuous review and labeling from being interrupted.
-
-### Compact Workbench
-
-The UI is organized around a left image queue, central canvas, right class/annotation manager, and bottom SAM workflow. After opening a folder, you can browse thumbnails, select multiple images for batch prompt annotation, and manage classes, prompt aliases, colors, and visibility from the right panel.
+<p align="center">
+  <img src="assets/shortcut_en.jpg" alt="PromptLabel shortcut overview" width="900">
+</p>
 
 ## Screenshot
+
+The UI is organized around a left image queue, central canvas, right class/annotation manager, and bottom SAM workflow. After opening a folder, you can browse thumbnails, select multiple images for batch prompt annotation, and manage classes, prompt aliases, colors, and visibility from the right panel.
 
 ![PromptLabel main interface](assets/readme_main_ui.png)
 
@@ -66,6 +67,8 @@ Backup download:
 
 `sam3.pt` belongs to SAM Materials and is governed by `SAM_LICENSE.txt`. Confirm compliance with Meta's SAM License before use or redistribution.
 
+![Finding the SAM model](assets/find_sam.jpg)
+
 ## How to Run
 
 ### Beta Portable Package
@@ -94,11 +97,6 @@ python -m venv .venv311
 
 The output directory is `dist\PromptLabel\`. Release packages should not include `models\sam3.pt`, `.sam3_tmp\`, logs, caches, or local test images.
 
-## Shortcuts
-
-<p align="center">
-  <img src="assets/shortcut_en.jpg" alt="PromptLabel shortcut overview" width="900">
-</p>
 
 ## Auto-Save
 
