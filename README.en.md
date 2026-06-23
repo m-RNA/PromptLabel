@@ -6,13 +6,15 @@
   <img src="assets/promptlabel_pl.png" alt="PromptLabel icon" width="96">
 </p>
 
-PromptLabel is a SAM3-based image annotation workbench for prompt-assisted labeling. Its focus is using text prompts to quickly locate targets, then saving the results in common training dataset annotation formats. The interface and basic annotation workflow are adapted from [LabelPaw](https://github.com/luohuabuxiema/LabelPaw), and this is not an official version from the original author.
+PromptLabel is a SAM3-based prompt-assisted image annotation workbench. It separates “prompt wording” from “training classes”: you can use multiple prompt aliases to find the same target while keeping exported YOLO classes clean and stable.
+
+The interface and basic annotation workflow are adapted from [LabelPaw](https://github.com/luohuabuxiema/LabelPaw). This is not an official version from the original author.
 
 ## Core Highlights
 
 ### One Class, Multiple Prompts
 
-This is the most important change in PromptLabel. PromptLabel allows one YOLO class to bind multiple prompt aliases, for example:
+One training class can have multiple prompt aliases, for example:
 
 ```text
 helmet
@@ -21,65 +23,39 @@ helmet
 └─ ...
 ```
 
-When using SAM text prompts, you can search for targets with any alias. Saving and exporting still write only the same YOLO class, such as `helmet`. This keeps prompt wording flexible without polluting the training dataset classes.
+When using SAM text prompts, any alias can be used to find the target. Saving and exporting still write only the `helmet` class, so the dataset class list stays clean.
 
-### Fewer Mouse Clicks, Faster Shortcuts
+### Faster Continuous Annotation
 
-PromptLabel moves frequent actions in continuous annotation to the keyboard: `A` / `D` switch images, `1` - `9` or `Tab` switch the active class, `Q` / `Space` toggle SAM, and `R` submits the prompt. Combined with auto-save, status-bar feedback, and the annotation list on the right, common workflows can be completed with fewer mouse clicks and fewer interruptions.
+Frequent actions have keyboard paths: `A` / `D` switch images, `1` - `9` or `Tab` switch classes, `Q` / `Space` toggles SAM, and `R` submits the prompt. Together with auto-save and status-bar feedback, this keeps continuous review and labeling from being interrupted.
 
-<p align="center">
-  <img src="assets/shortcut_en.jpg" alt="PromptLabel shortcut overview" width="900">
-</p>
+### Compact Workbench
 
-### Left-Side Image Gallery
+The UI is organized around a left image queue, central canvas, right class/annotation manager, and bottom SAM workflow. After opening a folder, you can browse thumbnails, select multiple images for batch prompt annotation, and manage classes, prompt aliases, colors, and visibility from the right panel.
 
-After opening a directory, images in the current folder are shown as an image queue on the left. Thumbnails, file names, and the total image count are visible directly. Queue items include checkboxes, so multiple images can be selected and submitted to prompt-based batch annotation at once. Continuous annotation no longer requires repeatedly opening the file picker, making it easier to scan through a whole folder quickly.
+## Screenshot
 
-### Compact Annotation Workbench
+![PromptLabel main interface](assets/readme_main_ui.png)
 
-The interface is reorganized into a left image queue, central canvas, right class/annotation management panel, and bottom SAM workflow. Compared with the original interface, PromptLabel emphasizes canvas space, information density, and fewer interruptions.
+## Feature Overview
 
-### Screenshots
-
-The main interface is organized around "image queue - canvas - management panel - SAM workflow", suitable for continuous image switching, annotation, and review. Dataset processing and annotation management keep the same compact information density, so cleanup, labeling, review, and export can stay in one tool.
-
-| Main workbench | Dataset processing |
-| --- | --- |
-| ![PromptLabel main interface](assets/readme_main_ui.png) | ![PromptLabel dataset tool](assets/readme_dataset_tool.png) |
-
-| Class and annotation management | Shortcut overview |
-| --- | --- |
-| ![PromptLabel annotation management](assets/readme_annotation_tabs.png) | ![PromptLabel shortcut overview](assets/shortcut_en.jpg) |
-
-### Smaller Quality-of-Life Improvements
-
-- Scrolling the prompt combo box only switches its content and does not accidentally submit a SAM prompt.
-- The label combo box supports smooth mouse-wheel switching of the active class.
-- Annotation boxes support optional breathing highlight, making existing annotations easier to identify quickly.
-- The class tree directly manages prompt aliases, colors, and show/hide state.
-- The annotation list is grouped by rectangle, polygon, point, and rotated box, with selection, batch relabeling, and deletion support.
-- Canvas right-click supports switching the active label, batch-changing selected annotation classes, and toggling SAM.
-- Common actions have keyboard paths, reducing mouse clicks when switching images, modes, classes, selecting annotations, editing labels, deleting annotations, and submitting prompts.
-- The status bar shows the total annotation count and per-class counts for the current annotation mode.
-- Image switching debounces SAM analysis, so continuously pressing `A` / `D` does not run the model immediately for every image.
-- Fewer toast messages are used; more information is placed in the status bar to avoid covering the canvas.
-- Small triangle styles for combo boxes and tree controls are unified and visible in both dark and light themes.
-
-## Preserved Features
-
-- Annotation formats: `JSON` / `YOLO` / `XML`
-- Annotation types: rectangle, polygon, point, rotated box
-- SAM3 assistance: point selection, text prompts, reference search
-- Class management: add, edit, delete, color, show/hide, prompt aliases
-- Image directory: thumbnail queue, multi-select checkboxes, image count statistics, previous/next image, batch prompt annotation, and right-click image/annotation deletion
-- Common operations: auto-save, undo, redo, delete, batch selection, batch annotation class changes, current mode and annotation count statistics
-- Dataset processing: train/validation/test split, JSON/XML to YOLO, JSON to U-Net Mask
+- Annotation formats: `JSON` / `YOLO` / `XML`.
+- Annotation types: rectangle, polygon, point, rotated box.
+- SAM3 assistance: point selection, text prompts, reference target search.
+- Class management: add, edit, delete, color, show/hide, prompt aliases.
+- Image queue: thumbnails, multi-select checkboxes, previous/next image, batch prompt annotation, right-click deletion for images and same-name annotations.
+- Annotation management: grouped by type, selection, batch relabeling, batch deletion, breathing highlight.
+- Dataset processing: train/validation/test split, JSON/XML to YOLO, JSON to U-Net Mask.
 
 ## Model Notes
 
-Release packages do not include `models/sam3.pt`. When the model is missing, the main interface can still open, and manual annotation plus dataset processing remain available. SAM assistance is unavailable. On startup, you can also click "I have downloaded it" to select an existing `sam3.pt` file directly; the program remembers the path and does not require copying it into the project directory.
+Release packages do not include `models/sam3.pt`. When the model is missing, the main interface still opens, and manual annotation plus dataset processing remain available. SAM assistance is disabled. On first launch, you can select an existing `sam3.pt` file directly; the app remembers the path. You can also place the model at:
 
-Prefer downloading from official sources:
+```text
+models/sam3.pt
+```
+
+Prefer official sources:
 
 - [facebook/sam3 on Hugging Face](https://huggingface.co/facebook/sam3/tree/main)
 - [facebookresearch/sam3](https://github.com/facebookresearch/sam3)
@@ -88,13 +64,7 @@ Backup download:
 
 - [Baidu Netdisk sam3.pt](https://pan.baidu.com/s/11rKzO6W5b_i8aOFcd9xOzA?pwd=6666), extraction code: `6666`
 
-`sam3.pt` belongs to SAM Materials and is governed by `SAM_LICENSE.txt`. The backup download is only provided for convenience. Confirm compliance with Meta's SAM License before use or redistribution.
-
-After downloading, select the file directly in the startup dialog, or place it at the default path:
-
-```text
-models/sam3.pt
-```
+`sam3.pt` belongs to SAM Materials and is governed by `SAM_LICENSE.txt`. Confirm compliance with Meta's SAM License before use or redistribution.
 
 ## How to Run
 
@@ -102,7 +72,7 @@ models/sam3.pt
 
 1. Download the `PromptLabel-vX.X.X` portable package from the Release page.
 2. Extract it into one directory.
-3. Put `sam3.pt` at `models/sam3.pt`.
+3. Optional: put `sam3.pt` at `models/sam3.pt`.
 4. Double-click `PromptLabel.exe` to start.
 
 ### Run from Source
@@ -117,49 +87,22 @@ python -m venv .venv311
 
 ### Local Packaging
 
-The repository includes `PromptLabel.spec`. Before packaging, make sure dependencies and PyInstaller are installed in `.venv311`:
-
 ```powershell
 .\.venv311\Scripts\pip install pyinstaller
 .\.venv311\Scripts\pyinstaller.exe --clean --noconfirm PromptLabel.spec
 ```
 
-The output directory is `dist\PromptLabel\`. Release packages should not include `models\sam3.pt`, `.sam3_tmp\`, logs, caches, or local test images. Users can select an existing model file on first launch or place it at `models\sam3.pt`.
+The output directory is `dist\PromptLabel\`. Release packages should not include `models\sam3.pt`, `.sam3_tmp\`, logs, caches, or local test images.
 
 ## Shortcuts
 
-| Shortcut | Function |
-| -------- | -------- |
-| `A` / `←` | Previous image |
-| `D` / `→` | Next image |
-| `R` | Submit SAM prompt |
-| `B` / `P` / `T` / `O` | Rectangle / polygon / point / rotated box |
-| `Q` / `Space` | Toggle SAM |
-| `F` / `0` / `Del` / `Backspace` | Delete selected annotation |
-| `Ctrl + Z` | Undo |
-| `Ctrl + Y` / `Ctrl + Shift + Z` | Redo |
-| `Ctrl + A` | Select all annotations in the current annotation-type group |
-| `1` - `9` | Switch active class |
-| `↑` / `W` | Select previous annotation in the current annotation-type list |
-| `↓` / `S` | Select next annotation in the current annotation-type list |
-| `E` | Change selected annotation label |
-| `F1` | Open help |
+<p align="center">
+  <img src="assets/shortcut_en.jpg" alt="PromptLabel shortcut overview" width="900">
+</p>
 
-## Context Menus
+## Auto-Save
 
-- Canvas right-click: toggle SAM, submit SAM prompt, switch active label, create label; when the cursor is on selected annotations, batch-change selected annotation classes.
-- Right annotation list right-click: batch-change annotation classes and batch-delete annotations.
-- Left image queue right-click: copy file name, open containing folder, delete image and same-name annotation files.
-
-## Auto-Save and Status Bar
-
-PromptLabel uses auto-save as the primary workflow and no longer treats "Save" as a high-frequency button. Switching images, editing annotations, deleting annotations, and similar operations are automatically saved to the current format.
-
-The status bar shows statistics for the current annotation mode, for example:
-
-```text
-Stats: Rectangle | Total: 12 | helmet: 5, vest: 7
-```
+PromptLabel is built around auto-save. Switching images, editing annotations, and deleting annotations are automatically saved to the current format. The status bar shows total and per-class counts for the current annotation mode.
 
 ## License
 
